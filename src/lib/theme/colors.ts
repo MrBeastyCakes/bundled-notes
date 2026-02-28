@@ -152,6 +152,9 @@ export const lightScheme = {
   inverseOnSurface: tonalPalette.neutral[95],
 };
 
+/** Canvas dot grid opacity — consumed by NoteCanvas for the background pattern */
+export const GRID_DOT_OPACITY = 0.4;
+
 // Preset bundle colors
 export const bundleColors = [
   "#565fff", // Primary blue

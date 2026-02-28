@@ -3,10 +3,21 @@
 import { useMemo, useState, useEffect } from "react";
 import type { Note, Bundle } from "@/lib/types";
 
-const BASE_WIDTH = 280;
+const DEFAULT_BASE_WIDTH = 280;
 const GAP = 24;
-const COLS = 6;
 const REGION_PADDING = 28;
+
+function getResponsiveBaseWidth() {
+  if (typeof window === "undefined") return DEFAULT_BASE_WIDTH;
+  return window.innerWidth < 600
+    ? Math.min(DEFAULT_BASE_WIDTH, window.innerWidth - 48)
+    : DEFAULT_BASE_WIDTH;
+}
+
+function getResponsiveCols(baseWidth: number) {
+  if (typeof window === "undefined") return 6;
+  return Math.max(2, Math.floor(window.innerWidth / (baseWidth + GAP)));
+}
 
 interface Position {
   x: number;
@@ -22,14 +33,17 @@ export interface BundleRegionRect {
 }
 
 export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
-  // Card size matches screen aspect ratio
-  const [cardSize, setCardSize] = useState({ width: BASE_WIDTH, height: 200 });
+  // Card size matches screen aspect ratio, responsive base width
+  const [cardSize, setCardSize] = useState({ width: DEFAULT_BASE_WIDTH, height: 200 });
+  const [cols, setCols] = useState(6);
 
   useEffect(() => {
     const update = () => {
+      const baseWidth = getResponsiveBaseWidth();
       const ratio = window.innerHeight / window.innerWidth;
-      const height = Math.round(BASE_WIDTH * ratio);
-      setCardSize({ width: BASE_WIDTH, height: Math.max(160, Math.min(500, height)) });
+      const height = Math.round(baseWidth * ratio);
+      setCardSize({ width: baseWidth, height: Math.max(160, Math.min(500, height)) });
+      setCols(getResponsiveCols(baseWidth));
     };
     update();
     window.addEventListener("resize", update);
@@ -48,8 +62,8 @@ export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
       if (note.positionX !== null && note.positionY !== null) {
         map.set(note.id, { x: note.positionX, y: note.positionY });
       } else {
-        const col = autoIndex % COLS;
-        const row = Math.floor(autoIndex / COLS);
+        const col = autoIndex % cols;
+        const row = Math.floor(autoIndex / cols);
         map.set(note.id, {
           x: col * (CARD_WIDTH + GAP),
           y: row * (CARD_HEIGHT + GAP),
@@ -59,7 +73,7 @@ export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
     }
 
     return map;
-  }, [notes, CARD_WIDTH, CARD_HEIGHT]);
+  }, [notes, CARD_WIDTH, CARD_HEIGHT, cols]);
 
   // Compute bounding boxes for bundle regions as physical containers
   const bundleRegions = useMemo(() => {

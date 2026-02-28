@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Chip, IconButton, Tooltip, Avatar, Typography } from "@mui/material";
+import { Box, Chip, IconButton, Tooltip, Avatar, Typography, useMediaQuery, useTheme } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import LightModeIcon from "@mui/icons-material/LightMode";
@@ -48,8 +48,24 @@ export default function FloatingControls({
   onOpenSearch,
   counts,
 }: FloatingControlsProps) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { mode, toggleTheme } = useThemeMode();
   const { user } = useAuth();
+
+  const glassBackground =
+    theme.palette.mode === "dark"
+      ? "rgba(31,31,35,0.8)"
+      : "rgba(241,237,241,0.8)";
+
+  const glassSx = {
+    bgcolor: glassBackground,
+    backdropFilter: "blur(16px)",
+    WebkitBackdropFilter: "blur(16px)",
+  } as const;
+
+  const safeTop = "max(16px, env(safe-area-inset-top, 0px))";
+  const safeBottom = "max(16px, env(safe-area-inset-bottom, 0px))";
 
   const countForView = (view: NoteView) => {
     const map: Record<NoteView, number> = {
@@ -67,12 +83,19 @@ export default function FloatingControls({
       <Box
         sx={{
           position: "absolute",
-          top: 16,
+          top: safeTop,
           left: 16,
           zIndex: 100,
           display: "flex",
           alignItems: "center",
           gap: 1,
+          ...glassSx,
+          borderRadius: 6,
+          px: 2,
+          py: 0.75,
+          boxShadow: 2,
+          border: 1,
+          borderColor: "divider",
         }}
       >
         <Typography
@@ -92,13 +115,13 @@ export default function FloatingControls({
       <Box
         sx={{
           position: "absolute",
-          top: 16,
+          top: safeTop,
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 100,
           display: "flex",
           gap: 0.75,
-          bgcolor: "background.paper",
+          ...glassSx,
           borderRadius: 6,
           p: 0.75,
           boxShadow: 2,
@@ -110,7 +133,7 @@ export default function FloatingControls({
           <Chip
             key={opt.view}
             icon={opt.icon}
-            label={`${opt.label} (${countForView(opt.view)})`}
+            label={isMobile ? undefined : `${opt.label} (${countForView(opt.view)})`}
             size="small"
             variant={activeView === opt.view ? "filled" : "outlined"}
             color={activeView === opt.view ? "primary" : "default"}
@@ -128,13 +151,13 @@ export default function FloatingControls({
       <Box
         sx={{
           position: "absolute",
-          top: 16,
+          top: safeTop,
           right: 16,
           zIndex: 100,
           display: "flex",
           alignItems: "center",
           gap: 0.5,
-          bgcolor: "background.paper",
+          ...glassSx,
           borderRadius: 6,
           p: 0.5,
           boxShadow: 2,
@@ -143,19 +166,19 @@ export default function FloatingControls({
         }}
       >
         <Tooltip title="Search (Ctrl+K)">
-          <IconButton size="small" onClick={onOpenSearch}>
+          <IconButton size="small" onClick={onOpenSearch} sx={isMobile ? { minWidth: 44, minHeight: 44 } : undefined}>
             <SearchIcon fontSize="small" />
           </IconButton>
         </Tooltip>
 
         <Tooltip title={mode === "dark" ? "Light mode" : "Dark mode"}>
-          <IconButton size="small" onClick={toggleTheme}>
+          <IconButton size="small" onClick={toggleTheme} sx={isMobile ? { minWidth: 44, minHeight: 44 } : undefined}>
             {mode === "dark" ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
           </IconButton>
         </Tooltip>
 
         <Tooltip title="Sign out">
-          <IconButton size="small" onClick={() => signOut()}>
+          <IconButton size="small" onClick={() => signOut()} sx={isMobile ? { minWidth: 44, minHeight: 44 } : undefined}>
             <LogoutIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -169,7 +192,7 @@ export default function FloatingControls({
       <Box
         sx={{
           position: "absolute",
-          bottom: 16,
+          bottom: safeBottom,
           right: 16,
           zIndex: 100,
           display: "flex",

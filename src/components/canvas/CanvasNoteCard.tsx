@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Box, Typography, Chip } from "@mui/material";
 import PushPinIcon from "@mui/icons-material/PushPin";
 import StarIcon from "@mui/icons-material/Star";
@@ -14,6 +15,7 @@ interface CanvasNoteCardProps {
   zoom: number;
   width: number;
   height: number;
+  bundleColor?: string;
   onClick: () => void;
 }
 
@@ -24,6 +26,7 @@ export default function CanvasNoteCard({
   zoom,
   width,
   height,
+  bundleColor,
   onClick,
 }: CanvasNoteCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -31,11 +34,54 @@ export default function CanvasNoteCard({
     data: { note },
   });
 
+  const [isHolding, setIsHolding] = useState(false);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wasDraggingRef = useRef(false);
+
+  // Track when drag starts for haptic feedback
+  useEffect(() => {
+    if (isDragging && !wasDraggingRef.current) {
+      navigator.vibrate?.(10);
+    }
+    wasDraggingRef.current = isDragging;
+  }, [isDragging]);
+
+  const handlePointerDown = useCallback(() => {
+    setIsHolding(true);
+    holdTimerRef.current = setTimeout(() => {
+      setIsHolding(false);
+    }, 300);
+  }, []);
+
+  const handlePointerUp = useCallback(() => {
+    setIsHolding(false);
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  }, []);
+
+  const handlePointerCancel = useCallback(() => {
+    setIsHolding(false);
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  }, []);
+
   const preview = note.content.slice(0, 100).replace(/<[^>]*>/g, "").replace(/[#*_~`>]/g, "");
   const dateStr = note.updatedAt.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
   });
+
+  const cardTransform = isDragging
+    ? `translate3d(${transform!.x / zoom}px, ${transform!.y / zoom}px, 0) scale(1.02)`
+    : isHolding
+      ? `scale(0.97)`
+      : transform
+        ? `translate3d(${transform.x / zoom}px, ${transform.y / zoom}px, 0)`
+        : undefined;
 
   const style: React.CSSProperties = {
     position: "absolute",
@@ -43,13 +89,15 @@ export default function CanvasNoteCard({
     top: y,
     width,
     height,
-    transform: transform
-      ? `translate3d(${transform.x / zoom}px, ${transform.y / zoom}px, 0)`
-      : undefined,
+    transform: cardTransform,
     zIndex: isDragging ? 1000 : 1,
     opacity: isDragging ? 0.85 : 1,
     cursor: isDragging ? "grabbing" : "pointer",
-    transition: isDragging ? "none" : "box-shadow 200ms ease, border-color 200ms ease",
+    transition: isDragging
+      ? "none"
+      : isHolding
+        ? "transform 300ms ease, box-shadow 300ms ease, border-color 300ms ease"
+        : "transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease",
   };
 
   return (
@@ -58,19 +106,27 @@ export default function CanvasNoteCard({
       {...listeners}
       {...attributes}
       style={style}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
       onClick={(e) => {
         if (!isDragging && !transform) onClick();
       }}
       sx={{
         bgcolor: "background.paper",
         border: 1,
-        borderColor: "divider",
+        borderColor: isDragging
+          ? "primary.main"
+          : isHolding
+            ? "primary.main"
+            : "divider",
+        borderLeft: bundleColor ? `3px solid ${bundleColor}` : undefined,
         borderRadius: 3,
         p: 2,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        boxShadow: isDragging ? 8 : 1,
+        boxShadow: isDragging ? 12 : isHolding ? 4 : 1,
         "&:hover": {
           borderColor: "primary.main",
           boxShadow: 3,
@@ -95,15 +151,17 @@ export default function CanvasNoteCard({
       {/* Preview */}
       {preview && (
         <Typography
-          variant="caption"
+          variant="body2"
           color="text.secondary"
           sx={{
             flex: 1,
             display: "-webkit-box",
-            WebkitLineClamp: 3,
+            WebkitLineClamp: 2,
             WebkitBoxOrient: "vertical",
             overflow: "hidden",
             lineHeight: 1.4,
+            fontSize: "0.8rem",
+            opacity: 0.85,
           }}
         >
           {preview}

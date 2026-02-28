@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Box } from "@mui/material";
+import { Box, Typography, Skeleton, IconButton } from "@mui/material";
+import NoteAddOutlined from "@mui/icons-material/NoteAddOutlined";
+import CloseIcon from "@mui/icons-material/Close";
+import { motion } from "framer-motion";
 import {
   DndContext,
   DragEndEvent,
@@ -28,6 +31,7 @@ import {
   moveNoteToBundle,
   updateNotePosition,
 } from "@/lib/firebase/firestore";
+import { GRID_DOT_OPACITY } from "@/lib/theme/colors";
 import type { Note, NoteView } from "@/lib/types";
 
 export default function NoteCanvas() {
@@ -37,6 +41,7 @@ export default function NoteCanvas() {
   const [isEditing, setIsEditing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [coachDismissed, setCoachDismissed] = useState(true);
 
   const { notes, allNotes, allTags, counts, loading } = useNotes({ view: activeView });
   const { bundles } = useBundles();
@@ -45,6 +50,22 @@ export default function NoteCanvas() {
   const { positions, bundleRegions, CARD_WIDTH, CARD_HEIGHT } = useCanvasLayout(notes, bundles);
 
   const editingNote = allNotes.find((n) => n.id === editingNoteId) || null;
+
+  // Check drag onboarding coach mark on mount
+  useEffect(() => {
+    const dismissed = localStorage.getItem("drag-onboarding-dismissed");
+    if (!dismissed) {
+      setCoachDismissed(false);
+    }
+  }, []);
+
+  const dismissCoachMark = useCallback(() => {
+    setCoachDismissed(true);
+    localStorage.setItem("drag-onboarding-dismissed", "true");
+  }, []);
+
+  // Build a bundle lookup map for passing bundleColor to cards
+  const bundleMap = new Map(bundles.map((b) => [b.id, b]));
 
   // Press-and-hold to drag — prevents conflict with pinch-to-zoom
   const pointerSensor = useSensor(PointerSensor, {
@@ -143,17 +164,27 @@ export default function NoteCanvas() {
     }, 450);
   }, [viewport]);
 
+  // Item 1: FAB creates note at viewport center
   const handleCreateNote = useCallback(
     async (canvasX?: number, canvasY?: number) => {
       if (!user) return;
+      // When no explicit position given (FAB click), place at viewport center
+      let finalX = canvasX;
+      let finalY = canvasY;
+      if (finalX === undefined || finalY === undefined) {
+        const center = viewport.screenToCanvas(
+          window.innerWidth / 2,
+          window.innerHeight / 2
+        );
+        finalX = center.x;
+        finalY = center.y;
+      }
       const docRef = await createNote(user.uid, {
         title: "",
         content: "",
         bundleId: null,
       });
-      if (canvasX !== undefined && canvasY !== undefined) {
-        await updateNotePosition(user.uid, docRef.id, Math.round(canvasX), Math.round(canvasY));
-      }
+      await updateNotePosition(user.uid, docRef.id, Math.round(finalX), Math.round(finalY));
       setTimeout(() => {
         const newNote = allNotes.find((n) => n.id === docRef.id);
         if (newNote) {
@@ -161,7 +192,7 @@ export default function NoteCanvas() {
         }
       }, 600);
     },
-    [user, allNotes, handleNoteClick]
+    [user, allNotes, handleNoteClick, viewport]
   );
 
   const handleDoubleClick = useCallback(
@@ -192,6 +223,12 @@ export default function NoteCanvas() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // Item 3: Generate skeleton positions for loading state (2x3 grid)
+  const skeletonPositions = Array.from({ length: 6 }, (_, i) => ({
+    x: (i % 2) * (CARD_WIDTH + 24),
+    y: Math.floor(i / 2) * (CARD_HEIGHT + 24),
+  }));
+
   return (
     <Box
       sx={{
@@ -202,13 +239,15 @@ export default function NoteCanvas() {
         bgcolor: "background.default",
       }}
     >
-      {/* Grid dot background */}
+      {/* Grid dot background — Item 7: use GRID_DOT_OPACITY */}
       <Box
         sx={{
           position: "absolute",
           inset: 0,
-          backgroundImage: (theme) =>
-            `radial-gradient(circle, ${theme.palette.divider} 1px, transparent 1px)`,
+          backgroundImage: (theme) => {
+            const dotColor = theme.palette.divider;
+            return `radial-gradient(circle, ${dotColor}${Math.round(GRID_DOT_OPACITY * 255).toString(16).padStart(2, "0")} 1px, transparent 1px)`;
+          },
           backgroundSize: `${24 * viewport.zoom}px ${24 * viewport.zoom}px`,
           backgroundPosition: `${viewport.offsetX}px ${viewport.offsetY}px`,
           pointerEvents: "none",
@@ -228,6 +267,32 @@ export default function NoteCanvas() {
           onOpenSearch={() => setSearchOpen(true)}
           counts={counts}
         />
+      )}
+
+      {/* Item 2: Canvas empty state */}
+      {!loading && notes.length === 0 && (
+        <Box
+          sx={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 1,
+            pointerEvents: "none",
+            zIndex: 1,
+          }}
+        >
+          <NoteAddOutlined sx={{ fontSize: 64, color: "text.secondary", opacity: 0.3 }} />
+          <Typography variant="h5" color="text.secondary">
+            No notes yet
+          </Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary", opacity: 0.6 }}>
+            Double-click anywhere or press + to create your first note
+          </Typography>
+        </Box>
       )}
 
       <DndContext
@@ -267,42 +332,97 @@ export default function NoteCanvas() {
               <BundleRegion key={region.bundle.id} region={region} />
             ))}
 
-            {/* Notes */}
+            {/* Item 4: Notes with entrance stagger animation + Item 5: bundleColor */}
             {!loading &&
-              notes.map((note) => {
+              notes.map((note, index) => {
                 const pos = positions.get(note.id);
                 if (!pos) return null;
+                const bundle = note.bundleId ? bundleMap.get(note.bundleId) : undefined;
                 return (
-                  <CanvasNoteCard
+                  <motion.div
                     key={note.id}
-                    note={note}
-                    x={pos.x}
-                    y={pos.y}
-                    zoom={viewport.zoom}
-                    width={CARD_WIDTH}
-                    height={CARD_HEIGHT}
-                    onClick={() => handleNoteClick(note)}
-                  />
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.3) }}
+                    style={{ position: "absolute", left: 0, top: 0 }}
+                  >
+                    <CanvasNoteCard
+                      note={note}
+                      x={pos.x}
+                      y={pos.y}
+                      zoom={viewport.zoom}
+                      width={CARD_WIDTH}
+                      height={CARD_HEIGHT}
+                      onClick={() => handleNoteClick(note)}
+                      bundleColor={bundle?.color}
+                    />
+                  </motion.div>
                 );
               })}
 
-            {loading && (
-              <Box
-                sx={{
-                  position: "absolute",
-                  top: "40vh",
-                  left: "40vw",
-                  color: "text.secondary",
-                  fontSize: "1.1rem",
-                  fontWeight: 500,
-                }}
-              >
-                Loading notes...
-              </Box>
-            )}
+            {/* Item 3: Loading skeleton state — 2x3 grid of skeleton cards */}
+            {loading &&
+              skeletonPositions.map((pos, i) => (
+                <Box
+                  key={`skeleton-${i}`}
+                  sx={{
+                    position: "absolute",
+                    left: pos.x,
+                    top: pos.y,
+                    width: CARD_WIDTH,
+                    height: CARD_HEIGHT,
+                  }}
+                >
+                  <Skeleton
+                    variant="rounded"
+                    width={CARD_WIDTH}
+                    height={CARD_HEIGHT}
+                    sx={{ borderRadius: 3 }}
+                  />
+                </Box>
+              ))}
           </Box>
         </Box>
       </DndContext>
+
+      {/* Item 6: Drag onboarding coach mark */}
+      {!coachDismissed && !loading && notes.length > 0 && (() => {
+        const firstNote = notes[0];
+        const firstPos = positions.get(firstNote.id);
+        if (!firstPos) return null;
+        // Position below the first card in screen space
+        const screenX = firstPos.x * viewport.zoom + viewport.offsetX + (CARD_WIDTH * viewport.zoom) / 2;
+        const screenY = firstPos.y * viewport.zoom + viewport.offsetY + CARD_HEIGHT * viewport.zoom + 8;
+        return (
+          <Box
+            sx={{
+              position: "absolute",
+              left: screenX,
+              top: screenY,
+              transform: "translateX(-50%)",
+              bgcolor: "background.paper",
+              border: 1,
+              borderColor: "divider",
+              borderRadius: 2,
+              px: 1.5,
+              py: 0.75,
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+              boxShadow: 3,
+              zIndex: 10,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <Typography variant="caption" color="text.secondary">
+              Press and hold to drag
+            </Typography>
+            <IconButton size="small" onClick={dismissCoachMark} sx={{ p: 0.25 }}>
+              <CloseIcon sx={{ fontSize: 14 }} />
+            </IconButton>
+          </Box>
+        );
+      })()}
 
       <EditorOverlay
         note={isEditing ? editingNote : null}
