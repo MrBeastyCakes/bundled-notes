@@ -8,6 +8,7 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
+  writeBatch,
   type Unsubscribe,
 } from "firebase/firestore";
 import { getFirebaseDb } from "./config";
@@ -135,4 +136,31 @@ export async function permanentlyDeleteNote(userId: string, noteId: string) {
 // Keep old deleteNote for backward compatibility, now does soft delete
 export async function deleteNote(userId: string, noteId: string) {
   return softDeleteNote(userId, noteId);
+}
+
+// --- Reordering ---
+
+export async function reorderNotes(userId: string, noteIds: string[]) {
+  const db = getFirebaseDb();
+  const batch = writeBatch(db);
+  noteIds.forEach((noteId, index) => {
+    const ref = doc(db, "users", userId, "notes", noteId);
+    batch.update(ref, { order: index });
+  });
+  return batch.commit();
+}
+
+export async function reorderBundles(userId: string, bundleIds: string[]) {
+  const db = getFirebaseDb();
+  const batch = writeBatch(db);
+  bundleIds.forEach((bundleId, index) => {
+    const ref = doc(db, "users", userId, "bundles", bundleId);
+    batch.update(ref, { order: index });
+  });
+  return batch.commit();
+}
+
+export async function moveNoteToBundle(userId: string, noteId: string, bundleId: string | null) {
+  const ref = doc(getFirebaseDb(), "users", userId, "notes", noteId);
+  return updateDoc(ref, { bundleId, updatedAt: serverTimestamp() });
 }

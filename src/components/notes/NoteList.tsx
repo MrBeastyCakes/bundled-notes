@@ -3,6 +3,8 @@
 import { Box, Typography, Fab } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import NoteCard from "./NoteCard";
+import SkeletonNoteCard from "@/components/ui/SkeletonNoteCard";
+import SortableNoteList from "./SortableNoteList";
 import type { Note } from "@/lib/types";
 
 interface NoteListProps {
@@ -11,6 +13,7 @@ interface NoteListProps {
   selectedNoteId: string | null;
   onSelectNote: (noteId: string) => void;
   onCreateNote?: () => void;
+  onReorder?: (noteIds: string[]) => void;
   loading: boolean;
 }
 
@@ -20,6 +23,7 @@ export default function NoteList({
   selectedNoteId,
   onSelectNote,
   onCreateNote,
+  onReorder,
   loading,
 }: NoteListProps) {
   const isEmpty = pinnedNotes.length === 0 && unpinnedNotes.length === 0;
@@ -28,9 +32,11 @@ export default function NoteList({
     <Box sx={{ position: "relative", height: "100%" }}>
       <Box sx={{ p: 2, overflow: "auto", height: "100%" }}>
         {loading ? (
-          <Typography color="text.secondary" sx={{ textAlign: "center", mt: 4 }}>
-            Loading notes...
-          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <SkeletonNoteCard key={i} />
+            ))}
+          </Box>
         ) : isEmpty ? (
           <Box sx={{ textAlign: "center", mt: 8 }}>
             <Typography variant="h6" color="text.secondary" gutterBottom>
@@ -40,6 +46,14 @@ export default function NoteList({
               Create your first note to get started
             </Typography>
           </Box>
+        ) : onReorder ? (
+          <SortableNoteList
+            pinnedNotes={pinnedNotes}
+            unpinnedNotes={unpinnedNotes}
+            selectedNoteId={selectedNoteId}
+            onSelectNote={onSelectNote}
+            onReorder={onReorder}
+          />
         ) : (
           <>
             {pinnedNotes.length > 0 && (
@@ -97,7 +111,7 @@ export default function NoteList({
           onClick={onCreateNote}
           sx={{
             position: "fixed",
-            bottom: 24,
+            bottom: { xs: 80, md: 24 },
             right: 24,
           }}
         >

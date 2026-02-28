@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Box, TextField, InputAdornment, Typography, useMediaQuery, useTheme } from "@mui/material";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { Box, TextField, InputAdornment, Typography, IconButton, useMediaQuery, useTheme } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import StarIcon from "@mui/icons-material/Star";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -12,10 +13,12 @@ import NoteEditor from "@/components/notes/NoteEditor";
 import BundleBreadcrumbs from "@/components/bundles/BundleBreadcrumbs";
 import CreateBundleDialog from "@/components/bundles/CreateBundleDialog";
 import TrashBanner from "@/components/notes/TrashBanner";
+import MobileBottomNav from "@/components/layout/MobileBottomNav";
+import PageTransition from "@/components/layout/PageTransition";
 import { TagFilterBar } from "@/components/notes/TagInput";
 import { useNotes } from "@/lib/hooks/useNotes";
 import { useAuth } from "@/lib/hooks/useAuth";
-import { createNote } from "@/lib/firebase/firestore";
+import { createNote, reorderNotes } from "@/lib/firebase/firestore";
 import type { NoteView } from "@/lib/types";
 
 const VIEW_LABELS: Record<NoteView, { label: string; icon: React.ReactNode; emptyText: string }> = {
@@ -35,6 +38,10 @@ export default function NotesPage() {
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<NoteView>("active");
 
+  // Mobile scroll-hide bottom nav
+  const [bottomNavVisible, setBottomNavVisible] = useState(true);
+  const lastScrollY = useRef(0);
+
   const { pinnedNotes, unpinnedNotes, allNotes, allTags, counts, loading } = useNotes({
     bundleId: activeBundleId,
     searchQuery,
@@ -49,6 +56,17 @@ export default function NotesPage() {
     () => allNotes.find((n) => n.id === selectedNoteId) || null,
     [allNotes, selectedNoteId]
   );
+
+  // Hide bottom nav on scroll down
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      setBottomNavVisible(currentY <= lastScrollY.current || currentY < 50);
+      lastScrollY.current = currentY;
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const handleCreateNote = async () => {
     if (!user) return;
@@ -70,6 +88,11 @@ export default function NotesPage() {
     setSelectedNoteId(null);
     setFilterTag(null);
     setSearchQuery("");
+  };
+
+  const handleReorder = async (noteIds: string[]) => {
+    if (!user) return;
+    await reorderNotes(user.uid, noteIds);
   };
 
   const viewInfo = VIEW_LABELS[activeView];
@@ -152,25 +175,53 @@ export default function NotesPage() {
           {/* Trash banner */}
           {activeView === "trash" && counts.trash > 0 && <TrashBanner />}
 
-          <NoteList
-            pinnedNotes={pinnedNotes}
-            unpinnedNotes={unpinnedNotes}
-            selectedNoteId={selectedNoteId}
-            onSelectNote={setSelectedNoteId}
-            onCreateNote={canCreateNote ? handleCreateNote : undefined}
-            loading={loading}
-          />
+          <PageTransition transitionKey={activeView + (activeBundleId || "")}>
+            <NoteList
+              pinnedNotes={pinnedNotes}
+              unpinnedNotes={unpinnedNotes}
+              selectedNoteId={selectedNoteId}
+              onSelectNote={setSelectedNoteId}
+              onCreateNote={canCreateNote ? handleCreateNote : undefined}
+              onReorder={activeView === "active" ? handleReorder : undefined}
+              loading={loading}
+            />
+          </PageTransition>
         </Box>
 
         {/* Editor panel */}
-        <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
+        <Box
+          sx={{
+            flexGrow: 1,
+            overflow: "hidden",
+            transition: "all 300ms cubic-bezier(0.2, 0, 0, 1)",
+          }}
+        >
           {selectedNote ? (
-            <NoteEditor
-              note={selectedNote}
-              allTags={allTags}
-              view={activeView}
-              onDeleted={() => setSelectedNoteId(null)}
-            />
+            <Box sx={{ height: "100%", position: "relative" }}>
+              {/* Mobile back button */}
+              {isMobile && (
+                <IconButton
+                  onClick={() => setSelectedNoteId(null)}
+                  sx={{
+                    position: "absolute",
+                    top: 12,
+                    left: 12,
+                    zIndex: 10,
+                    bgcolor: "background.paper",
+                    boxShadow: 2,
+                    "&:hover": { bgcolor: "action.hover" },
+                  }}
+                >
+                  <ArrowBackIcon />
+                </IconButton>
+              )}
+              <NoteEditor
+                note={selectedNote}
+                allTags={allTags}
+                view={activeView}
+                onDeleted={() => setSelectedNoteId(null)}
+              />
+            </Box>
           ) : (
             <Box
               sx={{
@@ -187,6 +238,15 @@ export default function NotesPage() {
           )}
         </Box>
       </Box>
+
+      {/* Mobile bottom nav */}
+      {isMobile && !selectedNote && (
+        <MobileBottomNav
+          activeView={activeView}
+          onSelectView={handleViewChange}
+          visible={bottomNavVisible}
+        />
+      )}
 
       <CreateBundleDialog
         open={bundleDialogOpen}
