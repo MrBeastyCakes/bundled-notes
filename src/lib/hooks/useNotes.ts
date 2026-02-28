@@ -38,6 +38,8 @@ export function useNotes({
         archived: n.archived ?? false,
         deleted: n.deleted ?? false,
         deletedAt: n.deletedAt ?? null,
+        positionX: n.positionX ?? null,
+        positionY: n.positionY ?? null,
       }));
       setNotes(normalized);
       setLoading(false);

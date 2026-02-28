@@ -96,6 +96,8 @@ export async function createNote(
     archived: false,
     deleted: false,
     deletedAt: null,
+    positionX: null,
+    positionY: null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -104,7 +106,7 @@ export async function createNote(
 export async function updateNote(
   userId: string,
   noteId: string,
-  data: Partial<Pick<Note, "title" | "content" | "bundleId" | "pinned" | "tags" | "favorited" | "archived" | "deleted" | "deletedAt">>
+  data: Partial<Pick<Note, "title" | "content" | "bundleId" | "pinned" | "tags" | "favorited" | "archived" | "deleted" | "deletedAt" | "positionX" | "positionY">>
 ) {
   const ref = doc(getFirebaseDb(), "users", userId, "notes", noteId);
   return updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
@@ -163,4 +165,22 @@ export async function reorderBundles(userId: string, bundleIds: string[]) {
 export async function moveNoteToBundle(userId: string, noteId: string, bundleId: string | null) {
   const ref = doc(getFirebaseDb(), "users", userId, "notes", noteId);
   return updateDoc(ref, { bundleId, updatedAt: serverTimestamp() });
+}
+
+export async function updateNotePosition(userId: string, noteId: string, x: number, y: number) {
+  const ref = doc(getFirebaseDb(), "users", userId, "notes", noteId);
+  return updateDoc(ref, { positionX: x, positionY: y });
+}
+
+export async function batchUpdatePositions(
+  userId: string,
+  positions: Array<{ noteId: string; x: number; y: number }>
+) {
+  const db = getFirebaseDb();
+  const batch = writeBatch(db);
+  positions.forEach(({ noteId, x, y }) => {
+    const ref = doc(db, "users", userId, "notes", noteId);
+    batch.update(ref, { positionX: x, positionY: y });
+  });
+  return batch.commit();
 }
