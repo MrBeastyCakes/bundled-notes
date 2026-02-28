@@ -27,12 +27,15 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import { useBundles } from "@/lib/hooks/useBundles";
 import type { Note } from "@/lib/types";
 
+import TagInput from "./TagInput";
+
 interface NoteEditorProps {
   note: Note;
+  allTags: string[];
   onDeleted: () => void;
 }
 
-export default function NoteEditor({ note, onDeleted }: NoteEditorProps) {
+export default function NoteEditor({ note, allTags, onDeleted }: NoteEditorProps) {
   const { user } = useAuth();
   const { bundles } = useBundles();
   const [title, setTitle] = useState(note.title);
@@ -46,7 +49,7 @@ export default function NoteEditor({ note, onDeleted }: NoteEditorProps) {
   }, [note.id, note.title, note.content]);
 
   const save = useCallback(
-    (fields: Partial<Pick<Note, "title" | "content" | "bundleId" | "pinned">>) => {
+    (fields: Partial<Pick<Note, "title" | "content" | "bundleId" | "pinned" | "tags">>) => {
       if (!user) return;
       updateNote(user.uid, note.id, fields);
     },
@@ -123,6 +126,15 @@ export default function NoteEditor({ note, onDeleted }: NoteEditorProps) {
             <DeleteIcon fontSize="small" />
           </IconButton>
         </Tooltip>
+      </Box>
+
+      {/* Tags */}
+      <Box sx={{ mb: 2 }}>
+        <TagInput
+          tags={note.tags || []}
+          allTags={allTags}
+          onChange={(tags) => save({ tags })}
+        />
       </Box>
 
       <Divider sx={{ mb: 2 }} />

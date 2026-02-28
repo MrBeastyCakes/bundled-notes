@@ -5,7 +5,13 @@ import { subscribeToNotes } from "@/lib/firebase/firestore";
 import { useAuth } from "./useAuth";
 import type { Note } from "@/lib/types";
 
-export function useNotes(activeBundleId: string | null = null) {
+interface UseNotesOptions {
+  bundleId?: string | null;
+  searchQuery?: string;
+  filterTag?: string | null;
+}
+
+export function useNotes({ bundleId = null, searchQuery = "", filterTag = null }: UseNotesOptions = {}) {
   const { user } = useAuth();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,16 +24,40 @@ export function useNotes(activeBundleId: string | null = null) {
     }
     setLoading(true);
     const unsubscribe = subscribeToNotes(user.uid, (data) => {
-      setNotes(data);
+      // Ensure tags field exists for older notes
+      const normalized = data.map((n) => ({ ...n, tags: n.tags || [] }));
+      setNotes(normalized);
       setLoading(false);
     });
     return unsubscribe;
   }, [user]);
 
   const filteredNotes = useMemo(() => {
-    if (!activeBundleId) return notes;
-    return notes.filter((n) => n.bundleId === activeBundleId);
-  }, [notes, activeBundleId]);
+    let result = notes;
+
+    // Filter by bundle
+    if (bundleId) {
+      result = result.filter((n) => n.bundleId === bundleId);
+    }
+
+    // Filter by tag
+    if (filterTag) {
+      result = result.filter((n) => n.tags.includes(filterTag));
+    }
+
+    // Search by query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(
+        (n) =>
+          n.title.toLowerCase().includes(q) ||
+          n.content.toLowerCase().includes(q) ||
+          n.tags.some((t) => t.toLowerCase().includes(q))
+      );
+    }
+
+    return result;
+  }, [notes, bundleId, filterTag, searchQuery]);
 
   const pinnedNotes = useMemo(
     () => filteredNotes.filter((n) => n.pinned),
@@ -39,5 +69,12 @@ export function useNotes(activeBundleId: string | null = null) {
     [filteredNotes]
   );
 
-  return { notes: filteredNotes, pinnedNotes, unpinnedNotes, allNotes: notes, loading };
+  // Collect all unique tags across all notes
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    notes.forEach((n) => n.tags.forEach((t) => tagSet.add(t)));
+    return Array.from(tagSet).sort();
+  }, [notes]);
+
+  return { notes: filteredNotes, pinnedNotes, unpinnedNotes, allNotes: notes, allTags, loading };
 }
