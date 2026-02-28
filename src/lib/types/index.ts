@@ -38,6 +38,8 @@ export interface Note {
   archived: boolean;
   deleted: boolean;
   deletedAt: Date | null;
+  positionX: number | null;
+  positionY: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
