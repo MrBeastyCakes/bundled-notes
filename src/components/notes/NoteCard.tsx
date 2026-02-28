@@ -1,0 +1,76 @@
+"use client";
+
+import { Card, CardContent, CardActionArea, Typography, Box } from "@mui/material";
+import PushPinIcon from "@mui/icons-material/PushPin";
+import BundleChip from "@/components/bundles/BundleChip";
+import type { Note } from "@/lib/types";
+
+interface NoteCardProps {
+  note: Note;
+  selected: boolean;
+  onClick: () => void;
+}
+
+export default function NoteCard({ note, selected, onClick }: NoteCardProps) {
+  const preview = note.content.slice(0, 120).replace(/[#*_~`>]/g, "");
+  const dateStr = note.updatedAt.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+
+  return (
+    <Card
+      elevation={0}
+      sx={{
+        border: 1,
+        borderColor: selected ? "primary.main" : "divider",
+        bgcolor: selected ? "action.selected" : "background.paper",
+        transition: "all 200ms cubic-bezier(0.2, 0, 0, 1)",
+        "&:hover": {
+          borderColor: "primary.main",
+          transform: "translateY(-1px)",
+        },
+      }}
+    >
+      <CardActionArea onClick={onClick} sx={{ p: 0 }}>
+        <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+          <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+            <Typography variant="subtitle1" fontWeight={600} noWrap sx={{ flex: 1 }}>
+              {note.title || "Untitled"}
+            </Typography>
+            {note.pinned && (
+              <PushPinIcon
+                fontSize="small"
+                color="primary"
+                sx={{ ml: 1, transform: "rotate(45deg)", fontSize: 16 }}
+              />
+            )}
+          </Box>
+
+          {preview && (
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{
+                mt: 0.5,
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {preview}
+            </Typography>
+          )}
+
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 1.5 }}>
+            <BundleChip bundleId={note.bundleId} />
+            <Typography variant="caption" color="text.secondary">
+              {dateStr}
+            </Typography>
+          </Box>
+        </CardContent>
+      </CardActionArea>
+    </Card>
+  );
+}
