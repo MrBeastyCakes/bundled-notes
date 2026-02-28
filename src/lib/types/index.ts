@@ -30,6 +30,7 @@ export interface Note {
   title: string;
   content: string;
   bundleId: string | null;
+  tags: string[];
   pinned: boolean;
   createdAt: Date;
   updatedAt: Date;

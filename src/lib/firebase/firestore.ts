@@ -84,10 +84,11 @@ export function subscribeToNotes(
 
 export async function createNote(
   userId: string,
-  data: { title: string; content: string; bundleId: string | null }
+  data: { title: string; content: string; bundleId: string | null; tags?: string[] }
 ) {
   return addDoc(notesCollection(userId), {
     ...data,
+    tags: data.tags || [],
     pinned: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -97,7 +98,7 @@ export async function createNote(
 export async function updateNote(
   userId: string,
   noteId: string,
-  data: Partial<Pick<Note, "title" | "content" | "bundleId" | "pinned">>
+  data: Partial<Pick<Note, "title" | "content" | "bundleId" | "pinned" | "tags">>
 ) {
   const ref = doc(getFirebaseDb(), "users", userId, "notes", noteId);
   return updateDoc(ref, { ...data, updatedAt: serverTimestamp() });

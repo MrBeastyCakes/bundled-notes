@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Box, useMediaQuery, useTheme } from "@mui/material";
+import { Box, TextField, InputAdornment, useMediaQuery, useTheme } from "@mui/material";
+import SearchIcon from "@mui/icons-material/Search";
 import AppShell from "@/components/layout/AppShell";
 import NoteList from "@/components/notes/NoteList";
 import NoteEditor from "@/components/notes/NoteEditor";
 import BundleBreadcrumbs from "@/components/bundles/BundleBreadcrumbs";
 import CreateBundleDialog from "@/components/bundles/CreateBundleDialog";
+import { TagFilterBar } from "@/components/notes/TagInput";
 import { useNotes } from "@/lib/hooks/useNotes";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { createNote } from "@/lib/firebase/firestore";
@@ -17,8 +19,14 @@ export default function NotesPage() {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [bundleDialogOpen, setBundleDialogOpen] = useState(false);
   const [bundleDialogParentId, setBundleDialogParentId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterTag, setFilterTag] = useState<string | null>(null);
 
-  const { pinnedNotes, unpinnedNotes, allNotes, loading } = useNotes(activeBundleId);
+  const { pinnedNotes, unpinnedNotes, allNotes, allTags, loading } = useNotes({
+    bundleId: activeBundleId,
+    searchQuery,
+    filterTag,
+  });
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("lg"));
@@ -49,6 +57,8 @@ export default function NotesPage() {
       onSelectBundle={(id) => {
         setActiveBundleId(id);
         setSelectedNoteId(null);
+        setFilterTag(null);
+        setSearchQuery("");
       }}
       onCreateBundle={handleOpenBundleDialog}
     >
@@ -66,12 +76,41 @@ export default function NotesPage() {
             transition: "all 300ms cubic-bezier(0.2, 0, 0, 1)",
           }}
         >
-          <Box sx={{ p: 2, pb: 0 }}>
+          <Box sx={{ p: 2, pb: 1 }}>
             <BundleBreadcrumbs
               activeBundleId={activeBundleId}
               onSelectBundle={setActiveBundleId}
             />
+
+            {/* Search bar */}
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Search notes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" color="action" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ mt: 1.5 }}
+            />
+
+            {/* Tag filter chips */}
+            {allTags.length > 0 && (
+              <Box sx={{ mt: 1 }}>
+                <TagFilterBar
+                  allTags={allTags}
+                  activeTag={filterTag}
+                  onSelectTag={setFilterTag}
+                />
+              </Box>
+            )}
           </Box>
+
           <NoteList
             pinnedNotes={pinnedNotes}
             unpinnedNotes={unpinnedNotes}
@@ -87,6 +126,7 @@ export default function NotesPage() {
           {selectedNote ? (
             <NoteEditor
               note={selectedNote}
+              allTags={allTags}
               onDeleted={() => setSelectedNoteId(null)}
             />
           ) : (

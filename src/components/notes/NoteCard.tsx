@@ -1,7 +1,8 @@
 "use client";
 
-import { Card, CardContent, CardActionArea, Typography, Box } from "@mui/material";
+import { Card, CardContent, CardActionArea, Typography, Box, Chip } from "@mui/material";
 import PushPinIcon from "@mui/icons-material/PushPin";
+import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import BundleChip from "@/components/bundles/BundleChip";
 import type { Note } from "@/lib/types";
 
@@ -61,6 +62,29 @@ export default function NoteCard({ note, selected, onClick }: NoteCardProps) {
             >
               {preview}
             </Typography>
+          )}
+
+          {note.tags?.length > 0 && (
+            <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", mt: 1 }}>
+              {note.tags.slice(0, 3).map((tag) => (
+                <Chip
+                  key={tag}
+                  label={tag}
+                  size="small"
+                  icon={<LocalOfferIcon sx={{ fontSize: 12 }} />}
+                  variant="outlined"
+                  sx={{ borderRadius: 2, height: 22, fontSize: "0.7rem" }}
+                />
+              ))}
+              {note.tags.length > 3 && (
+                <Chip
+                  label={`+${note.tags.length - 3}`}
+                  size="small"
+                  variant="outlined"
+                  sx={{ borderRadius: 2, height: 22, fontSize: "0.7rem" }}
+                />
+              )}
+            </Box>
           )}
 
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: 1.5 }}>
