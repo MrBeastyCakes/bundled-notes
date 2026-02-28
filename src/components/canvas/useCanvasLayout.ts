@@ -109,10 +109,10 @@ export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
       if (usedBundleIds.has(bundle.id)) continue;
       regions.push({
         bundle,
-        x: emptyIndex * (CARD_WIDTH + GAP * 2),
+        x: emptyIndex * (CARD_WIDTH * 1.5 + GAP * 2),
         y: gridEndY,
-        width: CARD_WIDTH + REGION_PADDING * 2,
-        height: CARD_HEIGHT + REGION_PADDING + 32,
+        width: CARD_WIDTH * 1.4,
+        height: CARD_HEIGHT * 1.2 + 32,
       });
       emptyIndex++;
     }

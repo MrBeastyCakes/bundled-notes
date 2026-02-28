@@ -25,12 +25,26 @@ export default function BundleRegion({ region }: BundleRegionProps) {
         top: y,
         width,
         height,
-        bgcolor: isOver ? `${bundle.color}28` : `${bundle.color}12`,
+        bgcolor: isOver ? `${bundle.color}28` : `${bundle.color}10`,
         border: "2px solid",
         borderColor: isOver ? bundle.color : `${bundle.color}30`,
         borderRadius: 4,
         transition: "all 200ms ease",
         boxShadow: isOver ? `inset 0 0 30px ${bundle.color}15, 0 0 20px ${bundle.color}20` : "none",
+        // Bold bottom-right corner to hint at resize / drag affordance
+        "&::after": {
+          content: '""',
+          position: "absolute",
+          bottom: 0,
+          right: 0,
+          width: 20,
+          height: 20,
+          borderBottom: "3px solid",
+          borderRight: "3px solid",
+          borderColor: isOver ? bundle.color : `${bundle.color}70`,
+          borderRadius: "0 0 16px 0",
+          transition: "border-color 200ms ease",
+        },
       }}
     >
       {/* Header bar */}
