@@ -6,8 +6,6 @@ import {
   TextField,
   IconButton,
   Typography,
-  ToggleButtonGroup,
-  ToggleButton,
   Tooltip,
   FormControl,
   InputLabel,
@@ -18,16 +16,12 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 import PushPinIcon from "@mui/icons-material/PushPin";
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
-import EditIcon from "@mui/icons-material/Edit";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { updateNote, deleteNote } from "@/lib/firebase/firestore";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useBundles } from "@/lib/hooks/useBundles";
 import type { Note } from "@/lib/types";
-
 import TagInput from "./TagInput";
+import TiptapEditor from "./TiptapEditor";
 
 interface NoteEditorProps {
   note: Note;
@@ -40,12 +34,10 @@ export default function NoteEditor({ note, allTags, onDeleted }: NoteEditorProps
   const { bundles } = useBundles();
   const [title, setTitle] = useState(note.title);
   const [content, setContent] = useState(note.content);
-  const [viewMode, setViewMode] = useState<"edit" | "preview">("edit");
 
   useEffect(() => {
     setTitle(note.title);
     setContent(note.content);
-    setViewMode("edit");
   }, [note.id, note.title, note.content]);
 
   const save = useCallback(
@@ -61,9 +53,9 @@ export default function NoteEditor({ note, allTags, onDeleted }: NoteEditorProps
     save({ title: value });
   };
 
-  const handleContentChange = (value: string) => {
-    setContent(value);
-    save({ content: value });
+  const handleContentChange = (html: string) => {
+    setContent(html);
+    save({ content: html });
   };
 
   const handleDelete = async () => {
@@ -100,20 +92,6 @@ export default function NoteEditor({ note, allTags, onDeleted }: NoteEditorProps
         </FormControl>
 
         <Box sx={{ flexGrow: 1 }} />
-
-        <ToggleButtonGroup
-          value={viewMode}
-          exclusive
-          onChange={(_, v) => v && setViewMode(v)}
-          size="small"
-        >
-          <ToggleButton value="edit">
-            <EditIcon fontSize="small" />
-          </ToggleButton>
-          <ToggleButton value="preview">
-            <VisibilityIcon fontSize="small" />
-          </ToggleButton>
-        </ToggleButtonGroup>
 
         <Tooltip title={note.pinned ? "Unpin" : "Pin"}>
           <IconButton onClick={() => save({ pinned: !note.pinned })} size="small">
@@ -153,78 +131,13 @@ export default function NoteEditor({ note, allTags, onDeleted }: NoteEditorProps
         sx={{ mb: 2 }}
       />
 
-      {/* Content */}
-      {viewMode === "edit" ? (
-        <TextField
-          value={content}
-          onChange={(e) => handleContentChange(e.target.value)}
-          placeholder="Start writing... (Markdown supported)"
-          multiline
-          fullWidth
-          variant="standard"
-          InputProps={{ disableUnderline: true }}
-          sx={{
-            flexGrow: 1,
-            "& .MuiInputBase-root": { alignItems: "flex-start" },
-            "& textarea": {
-              fontFamily: '"Inter", monospace',
-              fontSize: "0.95rem",
-              lineHeight: 1.7,
-            },
-          }}
+      {/* Tiptap Editor — hybrid Typora-like editing */}
+      <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
+        <TiptapEditor
+          content={content}
+          onUpdate={handleContentChange}
         />
-      ) : (
-        <Box
-          sx={{
-            flexGrow: 1,
-            overflow: "auto",
-            "& h1, & h2, & h3": { mt: 2, mb: 1 },
-            "& p": { mb: 1.5, lineHeight: 1.7 },
-            "& ul, & ol": { pl: 3 },
-            "& code": {
-              bgcolor: "action.hover",
-              px: 0.5,
-              py: 0.25,
-              borderRadius: 1,
-              fontFamily: "monospace",
-              fontSize: "0.875em",
-            },
-            "& pre": {
-              bgcolor: "action.hover",
-              p: 2,
-              borderRadius: 2,
-              overflow: "auto",
-              "& code": { bgcolor: "transparent", p: 0 },
-            },
-            "& blockquote": {
-              borderLeft: 3,
-              borderColor: "primary.main",
-              pl: 2,
-              ml: 0,
-              color: "text.secondary",
-            },
-            "& a": { color: "primary.main" },
-            "& table": {
-              borderCollapse: "collapse",
-              width: "100%",
-              "& th, & td": {
-                border: 1,
-                borderColor: "divider",
-                p: 1,
-                textAlign: "left",
-              },
-            },
-          }}
-        >
-          {content ? (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-          ) : (
-            <Typography color="text.secondary" fontStyle="italic">
-              Nothing to preview
-            </Typography>
-          )}
-        </Box>
-      )}
+      </Box>
 
       {/* Footer */}
       <Box sx={{ pt: 1, display: "flex", justifyContent: "flex-end" }}>
