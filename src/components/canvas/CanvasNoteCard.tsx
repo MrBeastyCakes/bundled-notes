@@ -6,7 +6,6 @@ import StarIcon from "@mui/icons-material/Star";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import { useDraggable } from "@dnd-kit/core";
 import type { Note } from "@/lib/types";
-import BundleChip from "@/components/bundles/BundleChip";
 
 interface CanvasNoteCardProps {
   note: Note;
@@ -48,9 +47,9 @@ export default function CanvasNoteCard({
       ? `translate3d(${transform.x / zoom}px, ${transform.y / zoom}px, 0)`
       : undefined,
     zIndex: isDragging ? 1000 : 1,
-    opacity: isDragging ? 0.8 : 1,
-    cursor: isDragging ? "grabbing" : "grab",
-    transition: isDragging ? "none" : "box-shadow 200ms ease",
+    opacity: isDragging ? 0.85 : 1,
+    cursor: isDragging ? "grabbing" : "pointer",
+    transition: isDragging ? "none" : "box-shadow 200ms ease, border-color 200ms ease",
   };
 
   return (
@@ -60,7 +59,6 @@ export default function CanvasNoteCard({
       {...attributes}
       style={style}
       onClick={(e) => {
-        // Don't open editor if we just finished a drag
         if (!isDragging && !transform) onClick();
       }}
       sx={{
@@ -137,8 +135,7 @@ export default function CanvasNoteCard({
       )}
 
       {/* Footer */}
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mt: "auto", pt: 0.5 }}>
-        <BundleChip bundleId={note.bundleId} />
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", mt: "auto", pt: 0.5 }}>
         <Typography variant="caption" color="text.secondary" fontSize="0.65rem">
           {dateStr}
         </Typography>

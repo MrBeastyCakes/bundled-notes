@@ -6,7 +6,7 @@ import type { Note, Bundle } from "@/lib/types";
 const BASE_WIDTH = 280;
 const GAP = 24;
 const COLS = 6;
-const REGION_PADDING = 20;
+const REGION_PADDING = 28;
 
 interface Position {
   x: number;
@@ -61,7 +61,7 @@ export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
     return map;
   }, [notes, CARD_WIDTH, CARD_HEIGHT]);
 
-  // Compute bounding boxes for bundle regions
+  // Compute bounding boxes for bundle regions as physical containers
   const bundleRegions = useMemo(() => {
     const regions: BundleRegionRect[] = [];
     const bundleMap = new Map(bundles.map((b) => [b.id, b]));
@@ -92,10 +92,29 @@ export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
       regions.push({
         bundle,
         x: minX - REGION_PADDING,
-        y: minY - REGION_PADDING - 28,
+        y: minY - REGION_PADDING - 32, // Space for header bar
         width: maxX - minX + REGION_PADDING * 2,
-        height: maxY - minY + REGION_PADDING * 2 + 28,
+        height: maxY - minY + REGION_PADDING * 2 + 32,
       });
+    }
+
+    // Also show empty bundles that have no notes — place them after the grid
+    const usedBundleIds = new Set(groups.keys());
+    let emptyIndex = 0;
+    const gridEndY = notes.length > 0
+      ? Math.max(...Array.from(positions.values()).map((p) => p.y)) + CARD_HEIGHT + GAP * 3
+      : 0;
+
+    for (const bundle of bundles) {
+      if (usedBundleIds.has(bundle.id)) continue;
+      regions.push({
+        bundle,
+        x: emptyIndex * (CARD_WIDTH + GAP * 2),
+        y: gridEndY,
+        width: CARD_WIDTH + REGION_PADDING * 2,
+        height: CARD_HEIGHT + REGION_PADDING + 32,
+      });
+      emptyIndex++;
     }
 
     return regions;

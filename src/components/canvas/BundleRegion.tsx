@@ -1,6 +1,7 @@
 "use client";
 
 import { Box, Typography } from "@mui/material";
+import { useDroppable } from "@dnd-kit/core";
 import type { BundleRegionRect } from "./useCanvasLayout";
 
 interface BundleRegionProps {
@@ -10,37 +11,64 @@ interface BundleRegionProps {
 export default function BundleRegion({ region }: BundleRegionProps) {
   const { bundle, x, y, width, height } = region;
 
+  const { isOver, setNodeRef } = useDroppable({
+    id: `bundle-region-${bundle.id}`,
+    data: { bundleId: bundle.id },
+  });
+
   return (
     <Box
+      ref={setNodeRef}
       sx={{
         position: "absolute",
         left: x,
         top: y,
         width,
         height,
-        bgcolor: `${bundle.color}14`, // 8% opacity
-        border: "1.5px dashed",
-        borderColor: `${bundle.color}40`, // 25% opacity
+        bgcolor: isOver ? `${bundle.color}28` : `${bundle.color}12`,
+        border: "2px solid",
+        borderColor: isOver ? bundle.color : `${bundle.color}30`,
         borderRadius: 4,
-        pointerEvents: "none",
+        transition: "all 200ms ease",
+        boxShadow: isOver ? `inset 0 0 30px ${bundle.color}15, 0 0 20px ${bundle.color}20` : "none",
       }}
     >
-      <Typography
-        variant="caption"
+      {/* Header bar */}
+      <Box
         sx={{
-          position: "absolute",
-          top: 6,
-          left: 12,
-          color: bundle.color,
-          fontWeight: 600,
-          fontSize: "0.7rem",
-          letterSpacing: "0.05em",
-          textTransform: "uppercase",
-          opacity: 0.8,
+          display: "flex",
+          alignItems: "center",
+          gap: 0.75,
+          px: 1.5,
+          py: 0.75,
+          borderBottom: "1px solid",
+          borderColor: `${bundle.color}25`,
         }}
       >
-        {bundle.icon} {bundle.name}
-      </Typography>
+        <Box
+          sx={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            bgcolor: bundle.color,
+            flexShrink: 0,
+          }}
+        />
+        <Typography
+          variant="caption"
+          sx={{
+            color: bundle.color,
+            fontWeight: 700,
+            fontSize: "0.7rem",
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            opacity: isOver ? 1 : 0.85,
+            transition: "opacity 200ms ease",
+          }}
+        >
+          {bundle.icon} {bundle.name}
+        </Typography>
+      </Box>
     </Box>
   );
 }

@@ -6,7 +6,6 @@ import StarIcon from "@mui/icons-material/Star";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useDroppable } from "@dnd-kit/core";
-import type { Bundle } from "@/lib/types";
 
 interface BottomZoneProps {
   id: string;
@@ -56,71 +55,11 @@ function BottomZone({ id, label, icon, color }: BottomZoneProps) {
   );
 }
 
-interface BundleDropZoneProps {
-  bundle: Bundle;
-}
-
-function BundleDropZone({ bundle }: BundleDropZoneProps) {
-  const { isOver, setNodeRef } = useDroppable({
-    id: `bundle-zone-${bundle.id}`,
-    data: { bundleId: bundle.id },
-  });
-
-  return (
-    <Box
-      ref={setNodeRef}
-      title={bundle.name}
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 0.5,
-        cursor: "default",
-      }}
-    >
-      <Box
-        sx={{
-          width: 40,
-          height: 40,
-          borderRadius: "50%",
-          bgcolor: isOver ? bundle.color : `${bundle.color}60`,
-          border: "2px solid",
-          borderColor: isOver ? bundle.color : "transparent",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "1rem",
-          transition: "all 200ms ease",
-          transform: isOver ? "scale(1.15)" : "scale(1)",
-          boxShadow: isOver ? `0 0 16px ${bundle.color}60` : "none",
-        }}
-      >
-        {bundle.icon}
-      </Box>
-      <Typography
-        variant="caption"
-        sx={{
-          fontSize: "0.6rem",
-          color: "text.secondary",
-          maxWidth: 56,
-          textAlign: "center",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {bundle.name}
-      </Typography>
-    </Box>
-  );
-}
-
 interface DragActionZonesProps {
   visible: boolean;
-  bundles: Bundle[];
 }
 
-export default function DragActionZones({ visible, bundles }: DragActionZonesProps) {
+export default function DragActionZones({ visible }: DragActionZonesProps) {
   return (
     <AnimatePresence>
       {visible && (
@@ -172,21 +111,6 @@ export default function DragActionZones({ visible, bundles }: DragActionZonesPro
               icon={<StarIcon />}
               color="#FFB300"
             />
-
-            {bundles.length > 0 && (
-              <Box
-                sx={{
-                  width: 1,
-                  height: 48,
-                  bgcolor: "rgba(255,255,255,0.15)",
-                  mx: 0.5,
-                }}
-              />
-            )}
-
-            {bundles.map((b) => (
-              <BundleDropZone key={b.id} bundle={b} />
-            ))}
           </Box>
         </motion.div>
       )}

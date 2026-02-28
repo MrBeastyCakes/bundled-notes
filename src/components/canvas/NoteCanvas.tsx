@@ -5,7 +5,6 @@ import { Box } from "@mui/material";
 import {
   DndContext,
   DragEndEvent,
-  DragStartEvent,
   PointerSensor,
   TouchSensor,
   useSensor,
@@ -47,12 +46,12 @@ export default function NoteCanvas() {
 
   const editingNote = allNotes.find((n) => n.id === editingNoteId) || null;
 
-  // Drag sensors
+  // Press-and-hold to drag — prevents conflict with pinch-to-zoom
   const pointerSensor = useSensor(PointerSensor, {
-    activationConstraint: { distance: 8 },
+    activationConstraint: { delay: 300, tolerance: 5 },
   });
   const touchSensor = useSensor(TouchSensor, {
-    activationConstraint: { delay: 250, tolerance: 5 },
+    activationConstraint: { delay: 400, tolerance: 8 },
   });
   const sensors = useSensors(pointerSensor, touchSensor);
 
@@ -70,7 +69,7 @@ export default function NoteCanvas() {
       const note = notes.find((n) => n.id === noteId);
       if (!note) return;
 
-      // Check action zones
+      // Bottom bar action zones
       if (over?.id === "zone-favorite") {
         await updateNote(user.uid, noteId, { favorited: !note.favorited });
         return;
@@ -83,18 +82,34 @@ export default function NoteCanvas() {
         await softDeleteNote(user.uid, noteId);
         return;
       }
-      if (typeof over?.id === "string" && over.id.startsWith("bundle-zone-")) {
+
+      // Dropped on a bundle container — assign note to that bundle
+      if (typeof over?.id === "string" && over.id.startsWith("bundle-region-")) {
         const bundleId = over.data?.current?.bundleId || null;
-        await moveNoteToBundle(user.uid, noteId, bundleId);
+        if (bundleId !== note.bundleId) {
+          await moveNoteToBundle(user.uid, noteId, bundleId);
+        }
+        // Also reposition
+        const pos = positions.get(noteId);
+        if (pos) {
+          const newX = pos.x + delta.x / viewport.zoom;
+          const newY = pos.y + delta.y / viewport.zoom;
+          await updateNotePosition(user.uid, noteId, Math.round(newX), Math.round(newY));
+        }
         return;
       }
 
-      // Reposition on canvas
+      // Dropped on empty canvas — remove from bundle if it had one, and reposition
       const pos = positions.get(noteId);
       if (pos) {
         const newX = pos.x + delta.x / viewport.zoom;
         const newY = pos.y + delta.y / viewport.zoom;
         await updateNotePosition(user.uid, noteId, Math.round(newX), Math.round(newY));
+
+        // If dragged out of a bundle onto empty canvas, unassign
+        if (note.bundleId && !over) {
+          await moveNoteToBundle(user.uid, noteId, null);
+        }
       }
     },
     [user, notes, positions, viewport.zoom]
@@ -111,7 +126,6 @@ export default function NoteCanvas() {
       setEditingNoteId(note.id);
       viewport.zoomToCard(pos.x, pos.y, CARD_WIDTH, CARD_HEIGHT);
 
-      // After zoom animation completes, enter edit mode
       setTimeout(() => {
         setIsEditing(true);
       }, 450);
@@ -124,7 +138,6 @@ export default function NoteCanvas() {
     setIsEditing(false);
     viewport.zoomBack();
 
-    // Clear editing note after zoom-back animation
     setTimeout(() => {
       setEditingNoteId(null);
     }, 450);
@@ -141,7 +154,6 @@ export default function NoteCanvas() {
       if (canvasX !== undefined && canvasY !== undefined) {
         await updateNotePosition(user.uid, docRef.id, Math.round(canvasX), Math.round(canvasY));
       }
-      // Wait for subscription, then zoom in to edit the new note
       setTimeout(() => {
         const newNote = allNotes.find((n) => n.id === docRef.id);
         if (newNote) {
@@ -206,7 +218,6 @@ export default function NoteCanvas() {
         }}
       />
 
-      {/* Floating controls — hide when editing */}
       {!isEditing && (
         <FloatingControls
           activeView={activeView}
@@ -224,7 +235,7 @@ export default function NoteCanvas() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        {!isEditing && <DragActionZones visible={isDragging} bundles={bundles} />}
+        {!isEditing && <DragActionZones visible={isDragging} />}
 
         {/* Canvas surface */}
         <Box
@@ -251,7 +262,7 @@ export default function NoteCanvas() {
                 : "none",
             }}
           >
-            {/* Bundle regions */}
+            {/* Bundle containers — droppable regions */}
             {bundleRegions.map((region) => (
               <BundleRegion key={region.bundle.id} region={region} />
             ))}
@@ -293,7 +304,6 @@ export default function NoteCanvas() {
         </Box>
       </DndContext>
 
-      {/* Full-screen editor — appears after zoom-in completes */}
       <EditorOverlay
         note={isEditing ? editingNote : null}
         allTags={allTags}
