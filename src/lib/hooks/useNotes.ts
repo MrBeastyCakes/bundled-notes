@@ -3,15 +3,21 @@
 import { useEffect, useState, useMemo } from "react";
 import { subscribeToNotes } from "@/lib/firebase/firestore";
 import { useAuth } from "./useAuth";
-import type { Note } from "@/lib/types";
+import type { Note, NoteView } from "@/lib/types";
 
 interface UseNotesOptions {
   bundleId?: string | null;
   searchQuery?: string;
   filterTag?: string | null;
+  view?: NoteView;
 }
 
-export function useNotes({ bundleId = null, searchQuery = "", filterTag = null }: UseNotesOptions = {}) {
+export function useNotes({
+  bundleId = null,
+  searchQuery = "",
+  filterTag = null,
+  view = "active",
+}: UseNotesOptions = {}) {
   const { user } = useAuth();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,19 +30,41 @@ export function useNotes({ bundleId = null, searchQuery = "", filterTag = null }
     }
     setLoading(true);
     const unsubscribe = subscribeToNotes(user.uid, (data) => {
-      // Ensure tags field exists for older notes
-      const normalized = data.map((n) => ({ ...n, tags: n.tags || [] }));
+      // Ensure new fields exist for older notes
+      const normalized = data.map((n) => ({
+        ...n,
+        tags: n.tags || [],
+        favorited: n.favorited ?? false,
+        archived: n.archived ?? false,
+        deleted: n.deleted ?? false,
+        deletedAt: n.deletedAt ?? null,
+      }));
       setNotes(normalized);
       setLoading(false);
     });
     return unsubscribe;
   }, [user]);
 
-  const filteredNotes = useMemo(() => {
-    let result = notes;
+  // View-filtered notes
+  const viewFilteredNotes = useMemo(() => {
+    switch (view) {
+      case "favorites":
+        return notes.filter((n) => n.favorited && !n.archived && !n.deleted);
+      case "archived":
+        return notes.filter((n) => n.archived && !n.deleted);
+      case "trash":
+        return notes.filter((n) => n.deleted);
+      case "active":
+      default:
+        return notes.filter((n) => !n.archived && !n.deleted);
+    }
+  }, [notes, view]);
 
-    // Filter by bundle
-    if (bundleId) {
+  const filteredNotes = useMemo(() => {
+    let result = viewFilteredNotes;
+
+    // Filter by bundle (only in active/favorites views)
+    if (bundleId && (view === "active" || view === "favorites")) {
       result = result.filter((n) => n.bundleId === bundleId);
     }
 
@@ -57,7 +85,7 @@ export function useNotes({ bundleId = null, searchQuery = "", filterTag = null }
     }
 
     return result;
-  }, [notes, bundleId, filterTag, searchQuery]);
+  }, [viewFilteredNotes, bundleId, filterTag, searchQuery, view]);
 
   const pinnedNotes = useMemo(
     () => filteredNotes.filter((n) => n.pinned),
@@ -69,12 +97,30 @@ export function useNotes({ bundleId = null, searchQuery = "", filterTag = null }
     [filteredNotes]
   );
 
-  // Collect all unique tags across all notes
+  // Collect all unique tags across all notes (not deleted)
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
-    notes.forEach((n) => n.tags.forEach((t) => tagSet.add(t)));
+    notes
+      .filter((n) => !n.deleted)
+      .forEach((n) => n.tags.forEach((t) => tagSet.add(t)));
     return Array.from(tagSet).sort();
   }, [notes]);
 
-  return { notes: filteredNotes, pinnedNotes, unpinnedNotes, allNotes: notes, allTags, loading };
+  // Counts for sidebar badges
+  const counts = useMemo(() => ({
+    active: notes.filter((n) => !n.archived && !n.deleted).length,
+    favorites: notes.filter((n) => n.favorited && !n.archived && !n.deleted).length,
+    archived: notes.filter((n) => n.archived && !n.deleted).length,
+    trash: notes.filter((n) => n.deleted).length,
+  }), [notes]);
+
+  return {
+    notes: filteredNotes,
+    pinnedNotes,
+    unpinnedNotes,
+    allNotes: notes,
+    allTags,
+    counts,
+    loading,
+  };
 }

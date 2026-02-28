@@ -10,7 +10,7 @@ interface NoteListProps {
   unpinnedNotes: Note[];
   selectedNoteId: string | null;
   onSelectNote: (noteId: string) => void;
-  onCreateNote: () => void;
+  onCreateNote?: () => void;
   loading: boolean;
 }
 
@@ -91,17 +91,19 @@ export default function NoteList({
         )}
       </Box>
 
-      <Fab
-        color="primary"
-        onClick={onCreateNote}
-        sx={{
-          position: "fixed",
-          bottom: 24,
-          right: 24,
-        }}
-      >
-        <AddIcon />
-      </Fab>
+      {onCreateNote && (
+        <Fab
+          color="primary"
+          onClick={onCreateNote}
+          sx={{
+            position: "fixed",
+            bottom: 24,
+            right: 24,
+          }}
+        >
+          <AddIcon />
+        </Fab>
+      )}
     </Box>
   );
 }

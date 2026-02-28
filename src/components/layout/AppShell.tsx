@@ -4,21 +4,28 @@ import { useState } from "react";
 import { Box, Toolbar } from "@mui/material";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
+import type { NoteView } from "@/lib/types";
 
 const DRAWER_WIDTH = 280;
 
 interface AppShellProps {
   children: React.ReactNode;
   activeBundleId: string | null;
+  activeView: NoteView;
   onSelectBundle: (bundleId: string | null) => void;
+  onSelectView: (view: NoteView) => void;
   onCreateBundle: (parentId: string | null) => void;
+  counts: { active: number; favorites: number; archived: number; trash: number };
 }
 
 export default function AppShell({
   children,
   activeBundleId,
+  activeView,
   onSelectBundle,
+  onSelectView,
   onCreateBundle,
+  counts,
 }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -29,8 +36,11 @@ export default function AppShell({
         open={mobileOpen}
         onClose={() => setMobileOpen(false)}
         activeBundleId={activeBundleId}
+        activeView={activeView}
         onSelectBundle={onSelectBundle}
+        onSelectView={onSelectView}
         onCreateBundle={onCreateBundle}
+        counts={counts}
       />
       <Box
         component="main"

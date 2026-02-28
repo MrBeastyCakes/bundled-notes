@@ -77,6 +77,7 @@ export function subscribeToNotes(
       ...doc.data(),
       createdAt: doc.data().createdAt?.toDate() || new Date(),
       updatedAt: doc.data().updatedAt?.toDate() || new Date(),
+      deletedAt: doc.data().deletedAt?.toDate() || null,
     })) as Note[];
     callback(notes);
   });
@@ -90,6 +91,10 @@ export async function createNote(
     ...data,
     tags: data.tags || [],
     pinned: false,
+    favorited: false,
+    archived: false,
+    deleted: false,
+    deletedAt: null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -98,13 +103,36 @@ export async function createNote(
 export async function updateNote(
   userId: string,
   noteId: string,
-  data: Partial<Pick<Note, "title" | "content" | "bundleId" | "pinned" | "tags">>
+  data: Partial<Pick<Note, "title" | "content" | "bundleId" | "pinned" | "tags" | "favorited" | "archived" | "deleted" | "deletedAt">>
 ) {
   const ref = doc(getFirebaseDb(), "users", userId, "notes", noteId);
   return updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
 }
 
-export async function deleteNote(userId: string, noteId: string) {
+export async function softDeleteNote(userId: string, noteId: string) {
+  const ref = doc(getFirebaseDb(), "users", userId, "notes", noteId);
+  return updateDoc(ref, {
+    deleted: true,
+    deletedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function restoreNote(userId: string, noteId: string) {
+  const ref = doc(getFirebaseDb(), "users", userId, "notes", noteId);
+  return updateDoc(ref, {
+    deleted: false,
+    deletedAt: null,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function permanentlyDeleteNote(userId: string, noteId: string) {
   const ref = doc(getFirebaseDb(), "users", userId, "notes", noteId);
   return deleteDoc(ref);
+}
+
+// Keep old deleteNote for backward compatibility, now does soft delete
+export async function deleteNote(userId: string, noteId: string) {
+  return softDeleteNote(userId, noteId);
 }

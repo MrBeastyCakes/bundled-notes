@@ -25,6 +25,8 @@ export interface BundleTreeNode extends Bundle {
   children: BundleTreeNode[];
 }
 
+export type NoteView = "active" | "favorites" | "archived" | "trash";
+
 export interface Note {
   id: string;
   title: string;
@@ -32,6 +34,10 @@ export interface Note {
   bundleId: string | null;
   tags: string[];
   pinned: boolean;
+  favorited: boolean;
+  archived: boolean;
+  deleted: boolean;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardActionArea, Typography, Box, Chip } from "@mui/material";
 import PushPinIcon from "@mui/icons-material/PushPin";
+import StarIcon from "@mui/icons-material/Star";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import BundleChip from "@/components/bundles/BundleChip";
 import type { Note } from "@/lib/types";
@@ -26,6 +27,7 @@ export default function NoteCard({ note, selected, onClick }: NoteCardProps) {
         border: 1,
         borderColor: selected ? "primary.main" : "divider",
         bgcolor: selected ? "action.selected" : "background.paper",
+        opacity: note.archived ? 0.7 : 1,
         transition: "all 200ms cubic-bezier(0.2, 0, 0, 1)",
         "&:hover": {
           borderColor: "primary.main",
@@ -39,13 +41,18 @@ export default function NoteCard({ note, selected, onClick }: NoteCardProps) {
             <Typography variant="subtitle1" fontWeight={600} noWrap sx={{ flex: 1 }}>
               {note.title || "Untitled"}
             </Typography>
-            {note.pinned && (
-              <PushPinIcon
-                fontSize="small"
-                color="primary"
-                sx={{ ml: 1, transform: "rotate(45deg)", fontSize: 16 }}
-              />
-            )}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, ml: 1, flexShrink: 0 }}>
+              {note.favorited && (
+                <StarIcon sx={{ fontSize: 16, color: "warning.main" }} />
+              )}
+              {note.pinned && (
+                <PushPinIcon
+                  fontSize="small"
+                  color="primary"
+                  sx={{ transform: "rotate(45deg)", fontSize: 16 }}
+                />
+              )}
+            </Box>
           </Box>
 
           {preview && (
