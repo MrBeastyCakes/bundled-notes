@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [master]
 
+permissions:
+  pull-requests: write
+
 jobs:
   build-and-preview:
     runs-on: ubuntu-latest
