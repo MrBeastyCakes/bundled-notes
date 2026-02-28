@@ -8,8 +8,8 @@ interface ViewportState {
   zoom: number;
 }
 
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 2;
+const MIN_ZOOM = 0.15;
+const MAX_ZOOM = 10;
 const ZOOM_STEP = 0.1;
 
 export function useCanvasViewport() {
@@ -18,11 +18,13 @@ export function useCanvasViewport() {
     offsetY: 0,
     zoom: 1,
   });
+  const [isAnimating, setIsAnimating] = useState(false);
 
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0 });
   const lastTouchDist = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const savedViewport = useRef<ViewportState | null>(null);
 
   const screenToCanvas = useCallback(
     (screenX: number, screenY: number) => {
@@ -36,9 +38,44 @@ export function useCanvasViewport() {
     [viewport]
   );
 
+  // Zoom the viewport so a given card fills the screen
+  const zoomToCard = useCallback(
+    (cardX: number, cardY: number, cardW: number, cardH: number) => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const vw = container.clientWidth;
+      const vh = container.clientHeight;
+
+      // Save current viewport to return to later
+      savedViewport.current = { ...viewport };
+
+      // Fill the viewport with the card
+      const targetZoom = Math.min(vw / cardW, vh / cardH);
+      const offsetX = (vw - cardW * targetZoom) / 2 - cardX * targetZoom;
+      const offsetY = (vh - cardH * targetZoom) / 2 - cardY * targetZoom;
+
+      setIsAnimating(true);
+      setViewport({ offsetX, offsetY, zoom: targetZoom });
+
+      // Clear animation flag after CSS transition completes
+      setTimeout(() => setIsAnimating(false), 450);
+    },
+    [viewport]
+  );
+
+  // Zoom back to saved viewport
+  const zoomBack = useCallback(() => {
+    if (!savedViewport.current) return;
+    setIsAnimating(true);
+    setViewport(savedViewport.current);
+    savedViewport.current = null;
+    setTimeout(() => setIsAnimating(false), 450);
+  }, []);
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      // Only pan on middle-click or left-click on background
+      if (isAnimating) return;
       if (e.button === 1 || (e.button === 0 && e.target === e.currentTarget)) {
         isPanning.current = true;
         panStart.current = {
@@ -48,19 +85,19 @@ export function useCanvasViewport() {
         e.preventDefault();
       }
     },
-    [viewport.offsetX, viewport.offsetY]
+    [viewport.offsetX, viewport.offsetY, isAnimating]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!isPanning.current) return;
+      if (!isPanning.current || isAnimating) return;
       setViewport((prev) => ({
         ...prev,
         offsetX: e.clientX - panStart.current.x,
         offsetY: e.clientY - panStart.current.y,
       }));
     },
-    []
+    [isAnimating]
   );
 
   const handleMouseUp = useCallback(() => {
@@ -69,6 +106,7 @@ export function useCanvasViewport() {
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
+      if (isAnimating) return;
       e.preventDefault();
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -88,14 +126,13 @@ export function useCanvasViewport() {
         };
       });
     },
-    []
+    [isAnimating]
   );
 
-  // Touch handlers for mobile
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
+      if (isAnimating) return;
       if (e.touches.length === 1) {
-        // Single finger pan (only on background)
         if (e.target === e.currentTarget) {
           isPanning.current = true;
           panStart.current = {
@@ -104,18 +141,18 @@ export function useCanvasViewport() {
           };
         }
       } else if (e.touches.length === 2) {
-        // Pinch zoom
         isPanning.current = false;
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         lastTouchDist.current = Math.sqrt(dx * dx + dy * dy);
       }
     },
-    [viewport.offsetX, viewport.offsetY]
+    [viewport.offsetX, viewport.offsetY, isAnimating]
   );
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
+      if (isAnimating) return;
       if (e.touches.length === 1 && isPanning.current) {
         setViewport((prev) => ({
           ...prev,
@@ -148,7 +185,7 @@ export function useCanvasViewport() {
         });
       }
     },
-    []
+    [isAnimating]
   );
 
   const handleTouchEnd = useCallback(() => {
@@ -157,15 +194,20 @@ export function useCanvasViewport() {
   }, []);
 
   const resetViewport = useCallback(() => {
+    setIsAnimating(true);
     setViewport({ offsetX: 0, offsetY: 0, zoom: 1 });
+    setTimeout(() => setIsAnimating(false), 450);
   }, []);
 
   return {
     ...viewport,
+    isAnimating,
     containerRef,
     isPanning: isPanning.current,
     screenToCanvas,
     resetViewport,
+    zoomToCard,
+    zoomBack,
     handlers: {
       onMouseDown: handleMouseDown,
       onMouseMove: handleMouseMove,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Box } from "@mui/material";
 import {
   DndContext,
@@ -34,8 +34,8 @@ import type { Note, NoteView } from "@/lib/types";
 export default function NoteCanvas() {
   const { user } = useAuth();
   const [activeView, setActiveView] = useState<NoteView>("active");
-  const [editingNote, setEditingNote] = useState<Note | null>(null);
-  const [editOriginRect, setEditOriginRect] = useState<DOMRect | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -45,9 +45,9 @@ export default function NoteCanvas() {
   const viewport = useCanvasViewport();
   const { positions, bundleRegions, CARD_WIDTH, CARD_HEIGHT } = useCanvasLayout(notes, bundles);
 
-  const cardRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const editingNote = allNotes.find((n) => n.id === editingNoteId) || null;
 
-  // Drag sensors — require a minimum distance to distinguish click from drag
+  // Drag sensors
   const pointerSensor = useSensor(PointerSensor, {
     activationConstraint: { distance: 8 },
   });
@@ -56,7 +56,7 @@ export default function NoteCanvas() {
   });
   const sensors = useSensors(pointerSensor, touchSensor);
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
+  const handleDragStart = useCallback(() => {
     setIsDragging(true);
   }, []);
 
@@ -70,7 +70,7 @@ export default function NoteCanvas() {
       const note = notes.find((n) => n.id === noteId);
       if (!note) return;
 
-      // Check if dropped on an action zone
+      // Check action zones
       if (over?.id === "zone-favorite") {
         await updateNote(user.uid, noteId, { favorited: !note.favorited });
         return;
@@ -89,7 +89,7 @@ export default function NoteCanvas() {
         return;
       }
 
-      // Otherwise, reposition on canvas
+      // Reposition on canvas
       const pos = positions.get(noteId);
       if (pos) {
         const newX = pos.x + delta.x / viewport.zoom;
@@ -100,20 +100,35 @@ export default function NoteCanvas() {
     [user, notes, positions, viewport.zoom]
   );
 
+  // Click note → zoom in → enter edit mode
   const handleNoteClick = useCallback(
-    (note: Note, element?: HTMLElement) => {
-      if (element) {
-        setEditOriginRect(element.getBoundingClientRect());
-      }
-      setEditingNote(note);
+    (note: Note) => {
+      if (isEditing || viewport.isAnimating) return;
+
+      const pos = positions.get(note.id);
+      if (!pos) return;
+
+      setEditingNoteId(note.id);
+      viewport.zoomToCard(pos.x, pos.y, CARD_WIDTH, CARD_HEIGHT);
+
+      // After zoom animation completes, enter edit mode
+      setTimeout(() => {
+        setIsEditing(true);
+      }, 450);
     },
-    []
+    [isEditing, viewport, positions, CARD_WIDTH, CARD_HEIGHT]
   );
 
+  // Close editor → zoom back out
   const handleCloseEditor = useCallback(() => {
-    setEditingNote(null);
-    setEditOriginRect(null);
-  }, []);
+    setIsEditing(false);
+    viewport.zoomBack();
+
+    // Clear editing note after zoom-back animation
+    setTimeout(() => {
+      setEditingNoteId(null);
+    }, 450);
+  }, [viewport]);
 
   const handleCreateNote = useCallback(
     async (canvasX?: number, canvasY?: number) => {
@@ -123,50 +138,47 @@ export default function NoteCanvas() {
         content: "",
         bundleId: null,
       });
-      // If position provided, save it
       if (canvasX !== undefined && canvasY !== undefined) {
         await updateNotePosition(user.uid, docRef.id, Math.round(canvasX), Math.round(canvasY));
       }
-      // Open editor for the new note after a tick (wait for subscription)
+      // Wait for subscription, then zoom in to edit the new note
       setTimeout(() => {
         const newNote = allNotes.find((n) => n.id === docRef.id);
-        if (newNote) setEditingNote(newNote);
-      }, 500);
+        if (newNote) {
+          handleNoteClick(newNote);
+        }
+      }, 600);
     },
-    [user, allNotes]
+    [user, allNotes, handleNoteClick]
   );
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
-      // Only on background
       if (e.target !== e.currentTarget) return;
+      if (isEditing) return;
       const { x, y } = viewport.screenToCanvas(e.clientX, e.clientY);
       handleCreateNote(x, y);
     },
-    [viewport, handleCreateNote]
+    [viewport, handleCreateNote, isEditing]
   );
 
   const handleViewChange = useCallback((view: NoteView) => {
     setActiveView(view);
-    setEditingNote(null);
+    setEditingNoteId(null);
+    setIsEditing(false);
   }, []);
 
-  // Ctrl+K to open search
-  const handleGlobalKeyDown = useCallback(
-    (e: KeyboardEvent) => {
+  // Ctrl+K search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setSearchOpen((prev) => !prev);
       }
-    },
-    []
-  );
-
-  // Register global keydown
-  useEffect(() => {
-    window.addEventListener("keydown", handleGlobalKeyDown);
-    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
-  }, [handleGlobalKeyDown]);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   return (
     <Box
@@ -188,31 +200,37 @@ export default function NoteCanvas() {
           backgroundSize: `${24 * viewport.zoom}px ${24 * viewport.zoom}px`,
           backgroundPosition: `${viewport.offsetX}px ${viewport.offsetY}px`,
           pointerEvents: "none",
+          transition: viewport.isAnimating
+            ? "background-size 400ms cubic-bezier(0.2, 0, 0, 1), background-position 400ms cubic-bezier(0.2, 0, 0, 1)"
+            : "none",
         }}
       />
 
-      <FloatingControls
-        activeView={activeView}
-        onViewChange={handleViewChange}
-        zoom={viewport.zoom}
-        onResetViewport={viewport.resetViewport}
-        onCreateNote={() => handleCreateNote()}
-        onOpenSearch={() => setSearchOpen(true)}
-        counts={counts}
-      />
+      {/* Floating controls — hide when editing */}
+      {!isEditing && (
+        <FloatingControls
+          activeView={activeView}
+          onViewChange={handleViewChange}
+          zoom={viewport.zoom}
+          onResetViewport={viewport.resetViewport}
+          onCreateNote={() => handleCreateNote()}
+          onOpenSearch={() => setSearchOpen(true)}
+          counts={counts}
+        />
+      )}
 
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <DragActionZones visible={isDragging} bundles={bundles} />
+        {!isEditing && <DragActionZones visible={isDragging} bundles={bundles} />}
 
         {/* Canvas surface */}
         <Box
           ref={viewport.containerRef}
-          {...viewport.handlers}
-          onDoubleClick={handleDoubleClick}
+          {...(isEditing ? {} : viewport.handlers)}
+          onDoubleClick={isEditing ? undefined : handleDoubleClick}
           sx={{
             position: "absolute",
             inset: 0,
@@ -228,9 +246,12 @@ export default function NoteCanvas() {
               position: "absolute",
               top: 0,
               left: 0,
+              transition: viewport.isAnimating
+                ? "transform 400ms cubic-bezier(0.2, 0, 0, 1)"
+                : "none",
             }}
           >
-            {/* Bundle regions (behind notes) */}
+            {/* Bundle regions */}
             {bundleRegions.map((region) => (
               <BundleRegion key={region.bundle.id} region={region} />
             ))}
@@ -254,7 +275,6 @@ export default function NoteCanvas() {
                 );
               })}
 
-            {/* Loading placeholder */}
             {loading && (
               <Box
                 sx={{
@@ -273,12 +293,12 @@ export default function NoteCanvas() {
         </Box>
       </DndContext>
 
+      {/* Full-screen editor — appears after zoom-in completes */}
       <EditorOverlay
-        note={editingNote}
+        note={isEditing ? editingNote : null}
         allTags={allTags}
         view={activeView}
         onClose={handleCloseEditor}
-        originRect={editOriginRect}
       />
 
       <CommandPalette
@@ -286,8 +306,8 @@ export default function NoteCanvas() {
         onClose={() => setSearchOpen(false)}
         notes={allNotes}
         onSelectNote={(note) => {
-          setEditingNote(note);
           setSearchOpen(false);
+          handleNoteClick(note);
         }}
       />
     </Box>

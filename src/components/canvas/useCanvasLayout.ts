@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type { Note, Bundle } from "@/lib/types";
 
-const CARD_WIDTH = 260;
-const CARD_HEIGHT = 180;
+const BASE_WIDTH = 280;
 const GAP = 24;
 const COLS = 6;
 const REGION_PADDING = 20;
@@ -23,6 +22,23 @@ export interface BundleRegionRect {
 }
 
 export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
+  // Card size matches screen aspect ratio
+  const [cardSize, setCardSize] = useState({ width: BASE_WIDTH, height: 200 });
+
+  useEffect(() => {
+    const update = () => {
+      const ratio = window.innerHeight / window.innerWidth;
+      const height = Math.round(BASE_WIDTH * ratio);
+      setCardSize({ width: BASE_WIDTH, height: Math.max(160, Math.min(500, height)) });
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  const CARD_WIDTH = cardSize.width;
+  const CARD_HEIGHT = cardSize.height;
+
   // Compute positions: use stored positions or auto-layout in a grid
   const positions = useMemo(() => {
     const map = new Map<string, Position>();
@@ -32,7 +48,6 @@ export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
       if (note.positionX !== null && note.positionY !== null) {
         map.set(note.id, { x: note.positionX, y: note.positionY });
       } else {
-        // Grid spiral from center
         const col = autoIndex % COLS;
         const row = Math.floor(autoIndex / COLS);
         map.set(note.id, {
@@ -44,14 +59,13 @@ export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
     }
 
     return map;
-  }, [notes]);
+  }, [notes, CARD_WIDTH, CARD_HEIGHT]);
 
   // Compute bounding boxes for bundle regions
   const bundleRegions = useMemo(() => {
     const regions: BundleRegionRect[] = [];
     const bundleMap = new Map(bundles.map((b) => [b.id, b]));
 
-    // Group notes by bundleId
     const groups = new Map<string, Position[]>();
     for (const note of notes) {
       if (!note.bundleId) continue;
@@ -78,14 +92,14 @@ export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
       regions.push({
         bundle,
         x: minX - REGION_PADDING,
-        y: minY - REGION_PADDING - 28, // Extra space for label
+        y: minY - REGION_PADDING - 28,
         width: maxX - minX + REGION_PADDING * 2,
         height: maxY - minY + REGION_PADDING * 2 + 28,
       });
     }
 
     return regions;
-  }, [notes, bundles, positions]);
+  }, [notes, bundles, positions, CARD_WIDTH, CARD_HEIGHT]);
 
   return { positions, bundleRegions, CARD_WIDTH, CARD_HEIGHT };
 }
