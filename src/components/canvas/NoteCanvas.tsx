@@ -29,6 +29,7 @@ import { useBundles } from "@/lib/hooks/useBundles";
 import {
   createNote,
   updateNote,
+  updateBundle,
   softDeleteNote,
   moveNoteToBundle,
   updateNotePosition,
@@ -96,7 +97,30 @@ export default function NoteCanvas() {
       if (!user) return;
 
       const { active, over, delta } = event;
-      const noteId = active.id as string;
+      const activeId = active.id as string;
+      const activeData = active.data?.current;
+
+      // --- Star dragged onto a black hole → reparent bundle ---
+      if (activeData?.type === "star" && activeData?.bundleId) {
+        const starBundleId = activeData.bundleId as string;
+        if (typeof over?.id === "string" && over.id.startsWith("black-hole-")) {
+          const parentBundleId = over.data?.current?.bundleId || null;
+          if (parentBundleId && parentBundleId !== starBundleId) {
+            await updateBundle(user.uid, starBundleId, { parentBundleId });
+          }
+        }
+        // Star dragged onto empty canvas → unparent (make root)
+        if (!over) {
+          const bundle = bundles.find((b) => b.id === starBundleId);
+          if (bundle?.parentBundleId) {
+            await updateBundle(user.uid, starBundleId, { parentBundleId: null });
+          }
+        }
+        return;
+      }
+
+      // --- Planet (note) drag ---
+      const noteId = activeId;
       const note = notes.find((n) => n.id === noteId);
       if (!note) return;
 
@@ -114,7 +138,7 @@ export default function NoteCanvas() {
         return;
       }
 
-      // Dropped on a star system — assign note to that bundle
+      // Dropped on a star system → assign note to that bundle
       if (typeof over?.id === "string" && over.id.startsWith("star-system-")) {
         const bundleId = over.data?.current?.bundleId || null;
         if (bundleId !== note.bundleId) {
@@ -123,7 +147,7 @@ export default function NoteCanvas() {
         return;
       }
 
-      // Dropped on a black hole — assign note to that bundle
+      // Dropped on a black hole → assign note to that bundle
       if (typeof over?.id === "string" && over.id.startsWith("black-hole-")) {
         const bundleId = over.data?.current?.bundleId || null;
         if (bundleId !== note.bundleId) {
@@ -132,7 +156,7 @@ export default function NoteCanvas() {
         return;
       }
 
-      // Dropped on empty canvas — reposition free-floating note
+      // Dropped on empty canvas → reposition free-floating note
       const pos = allNotePositions.get(noteId);
       if (pos) {
         const newX = pos.x + delta.x / viewport.zoom;
@@ -145,7 +169,7 @@ export default function NoteCanvas() {
         }
       }
     },
-    [user, notes, allNotePositions, viewport]
+    [user, notes, bundles, allNotePositions, viewport]
   );
 
   // Click note → zoom in → enter edit mode

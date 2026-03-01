@@ -1,8 +1,8 @@
 // Space-themed canvas constants
 
 // --- Planet sizing (notes) ---
-export const PLANET_MIN_RADIUS = 20; // px in canvas coords
-export const PLANET_MAX_RADIUS = 55;
+export const PLANET_MIN_RADIUS = 28; // px in canvas coords
+export const PLANET_MAX_RADIUS = 70;
 export const PLANET_CHAR_CAP = 5000; // chars beyond this don't increase size
 
 // --- Zoom morph thresholds ---
@@ -15,17 +15,17 @@ export const STAR_ORBIT_BASE_DURATION = 120; // seconds for star orbiting black 
 export const ORBIT_DURATION_VARIANCE = 20; // +/- random seconds
 
 // --- Star center ---
-export const STAR_CENTER_RADIUS = 10; // px in canvas coords
-export const STAR_GLOW_BLUR = 20; // px
+export const STAR_CENTER_RADIUS = 16; // px in canvas coords
+export const STAR_GLOW_BLUR = 30; // px
 
 // --- Black hole center ---
-export const BLACK_HOLE_CENTER_RADIUS = 15;
-export const BLACK_HOLE_RING_WIDTH = 3;
+export const BLACK_HOLE_CENTER_RADIUS = 22;
+export const BLACK_HOLE_RING_WIDTH = 4;
 
 // --- Orbital layout ---
-export const MIN_ORBITAL_RADIUS = 80; // minimum orbit radius
-export const ORBITAL_GAP = 12; // px gap between planets on orbit
-export const SYSTEM_MIN_SPACING = 300; // minimum px between star system centers
+export const MIN_ORBITAL_RADIUS = 140; // minimum orbit radius
+export const ORBITAL_GAP = 20; // px gap between planets on orbit
+export const SYSTEM_MIN_SPACING = 500; // minimum px between star system centers
 export const FREE_NOTE_GRID_GAP = 24;
 
 // --- Helpers ---
