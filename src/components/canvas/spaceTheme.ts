@@ -28,6 +28,13 @@ export const ORBITAL_GAP = 20; // px gap between planets on orbit
 export const SYSTEM_MIN_SPACING = 500; // minimum px between star system centers
 export const FREE_NOTE_GRID_GAP = 24;
 
+// --- Interaction constants ---
+export const SELECTION_GLOW_MULTIPLIER = 2.5;
+export const HOVER_GLOW_MULTIPLIER = 1.5;
+export const QUICK_ACTION_BUTTON_SIZE = 32; // px (unscaled)
+export const QUICK_ACTION_RING_OFFSET = 20; // px offset from object edge
+export const TOOLTIP_DELAY_MS = 600;
+
 // --- Helpers ---
 
 /** Compute planet radius from note content character count */
