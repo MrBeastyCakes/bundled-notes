@@ -1,11 +1,20 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import type { Note, Bundle } from "@/lib/types";
+import {
+  getPlanetRadius,
+  computeOrbitalRadius,
+  distributeAngles,
+  getOrbitDuration,
+  NOTE_ORBIT_BASE_DURATION,
+  STAR_ORBIT_BASE_DURATION,
+  SYSTEM_MIN_SPACING,
+  FREE_NOTE_GRID_GAP,
+} from "./spaceTheme";
+import type { StarPlanetData } from "./StarSystem";
+import type { Note, Bundle, BundleTreeNode } from "@/lib/types";
 
 const DEFAULT_BASE_WIDTH = 280;
-const GAP = 24;
-const REGION_PADDING = 28;
 
 function getResponsiveBaseWidth() {
   if (typeof window === "undefined") return DEFAULT_BASE_WIDTH;
@@ -14,28 +23,43 @@ function getResponsiveBaseWidth() {
     : DEFAULT_BASE_WIDTH;
 }
 
-function getResponsiveCols(baseWidth: number) {
-  if (typeof window === "undefined") return 6;
-  return Math.max(2, Math.floor(window.innerWidth / (baseWidth + GAP)));
-}
+// --- Layout data types ---
 
-interface Position {
-  x: number;
-  y: number;
-}
-
-export interface BundleRegionRect {
+export interface StarSystemLayout {
   bundle: Bundle;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  centerX: number;
+  centerY: number;
+  orbitalRadius: number;
+  planets: StarPlanetData[];
 }
 
-export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
-  // Card size matches screen aspect ratio, responsive base width
+export interface BlackHoleLayout {
+  bundle: Bundle;
+  centerX: number;
+  centerY: number;
+  orbitalRadius: number;
+  orbitingStars: Array<{
+    starSystem: StarSystemLayout;
+    startAngle: number;
+    orbitDuration: number;
+  }>;
+}
+
+export interface FreeNoteLayout {
+  note: Note;
+  x: number;
+  y: number;
+  radius: number;
+}
+
+// --- Hook ---
+
+export function useCanvasLayout(
+  notes: Note[],
+  bundles: Bundle[],
+  tree: BundleTreeNode[]
+) {
   const [cardSize, setCardSize] = useState({ width: DEFAULT_BASE_WIDTH, height: 200 });
-  const [cols, setCols] = useState(6);
 
   useEffect(() => {
     const update = () => {
@@ -43,7 +67,6 @@ export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
       const ratio = window.innerHeight / window.innerWidth;
       const height = Math.round(baseWidth * ratio);
       setCardSize({ width: baseWidth, height: Math.max(160, Math.min(500, height)) });
-      setCols(getResponsiveCols(baseWidth));
     };
     update();
     window.addEventListener("resize", update);
@@ -53,91 +76,190 @@ export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
   const CARD_WIDTH = cardSize.width;
   const CARD_HEIGHT = cardSize.height;
 
-  // Compute positions: use stored positions or auto-layout in a grid
-  const positions = useMemo(() => {
-    const map = new Map<string, Position>();
-    let autoIndex = 0;
-
-    for (const note of notes) {
-      if (note.positionX !== null && note.positionY !== null) {
-        map.set(note.id, { x: note.positionX, y: note.positionY });
-      } else {
-        const col = autoIndex % cols;
-        const row = Math.floor(autoIndex / cols);
-        map.set(note.id, {
-          x: col * (CARD_WIDTH + GAP),
-          y: row * (CARD_HEIGHT + GAP),
-        });
-        autoIndex++;
-      }
-    }
-
-    return map;
-  }, [notes, CARD_WIDTH, CARD_HEIGHT, cols]);
-
-  // Compute bounding boxes for bundle regions as physical containers
-  const bundleRegions = useMemo(() => {
-    const regions: BundleRegionRect[] = [];
+  const layout = useMemo(() => {
+    // Build lookup maps
     const bundleMap = new Map(bundles.map((b) => [b.id, b]));
+    const notesByBundle = new Map<string, Note[]>();
+    const freeNotes: Note[] = [];
 
-    const groups = new Map<string, Position[]>();
     for (const note of notes) {
-      if (!note.bundleId) continue;
-      const pos = positions.get(note.id);
-      if (!pos) continue;
-      if (!groups.has(note.bundleId)) groups.set(note.bundleId, []);
-      groups.get(note.bundleId)!.push(pos);
+      if (note.bundleId && bundleMap.has(note.bundleId)) {
+        if (!notesByBundle.has(note.bundleId)) notesByBundle.set(note.bundleId, []);
+        notesByBundle.get(note.bundleId)!.push(note);
+      } else {
+        freeNotes.push(note);
+      }
     }
 
-    for (const [bundleId, notePositions] of groups) {
-      const bundle = bundleMap.get(bundleId);
-      if (!bundle || notePositions.length === 0) continue;
+    // Classify bundles: leaf (star) vs parent (black hole)
+    const leafBundles: Bundle[] = [];
+    const parentBundles: BundleTreeNode[] = [];
 
-      let minX = Infinity, minY = Infinity;
-      let maxX = -Infinity, maxY = -Infinity;
+    function classifyTree(nodes: BundleTreeNode[]) {
+      for (const node of nodes) {
+        if (node.children.length > 0) {
+          parentBundles.push(node);
+          // Don't recurse into children here — they'll be handled as orbiting stars
+        } else if (!node.parentBundleId) {
+          // Only top-level leaf bundles are standalone stars
+          leafBundles.push(node);
+        }
+      }
+    }
+    classifyTree(tree);
 
-      for (const pos of notePositions) {
-        minX = Math.min(minX, pos.x);
-        minY = Math.min(minY, pos.y);
-        maxX = Math.max(maxX, pos.x + CARD_WIDTH);
-        maxY = Math.max(maxY, pos.y + CARD_HEIGHT);
+    // Also include leaf bundles that are children of black holes — they're handled within the black hole layout
+
+    // --- Build star systems for leaf bundles ---
+    function buildStarSystem(bundle: Bundle, memberNotes: Note[]): StarSystemLayout {
+      const planetRadii = memberNotes.map((n) => getPlanetRadius(n.content, n.title));
+      const orbitalRadius = computeOrbitalRadius(planetRadii);
+      const angles = distributeAngles(memberNotes.length);
+
+      const planets: StarPlanetData[] = memberNotes.map((note, i) => ({
+        note,
+        radius: planetRadii[i],
+        startAngle: angles[i],
+        orbitDuration: getOrbitDuration(NOTE_ORBIT_BASE_DURATION, note.id),
+      }));
+
+      return {
+        bundle,
+        centerX: 0, // will be positioned below
+        centerY: 0,
+        orbitalRadius,
+        planets,
+      };
+    }
+
+    // --- Position standalone star systems ---
+    const starSystems: StarSystemLayout[] = [];
+    let systemCol = 0;
+
+    for (const bundle of leafBundles) {
+      const memberNotes = notesByBundle.get(bundle.id) || [];
+      const system = buildStarSystem(bundle, memberNotes);
+      const systemRadius = system.orbitalRadius + 60; // padding
+      const spacing = Math.max(SYSTEM_MIN_SPACING, systemRadius * 2 + 60);
+
+      system.centerX = systemCol * spacing + spacing / 2;
+      system.centerY = spacing / 2;
+      systemCol++;
+      starSystems.push(system);
+    }
+
+    // --- Build black holes ---
+    const blackHoles: BlackHoleLayout[] = [];
+
+    for (const parentNode of parentBundles) {
+      // Build star systems for each child bundle
+      const childStarSystems: StarSystemLayout[] = [];
+      for (const child of parentNode.children) {
+        const childBundle = bundleMap.get(child.id);
+        if (!childBundle) continue;
+        const childNotes = notesByBundle.get(child.id) || [];
+        childStarSystems.push(buildStarSystem(childBundle, childNotes));
       }
 
-      const autoWidth = maxX - minX + REGION_PADDING * 2;
-      const autoHeight = maxY - minY + REGION_PADDING * 2 + 32;
+      // Also include notes directly assigned to the parent bundle as a virtual star
+      const parentDirectNotes = notesByBundle.get(parentNode.id) || [];
+      let parentStarSystem: StarSystemLayout | null = null;
+      if (parentDirectNotes.length > 0) {
+        parentStarSystem = buildStarSystem(parentNode, parentDirectNotes);
+        childStarSystems.push(parentStarSystem);
+      }
 
-      regions.push({
-        bundle,
-        x: minX - REGION_PADDING,
-        y: minY - REGION_PADDING - 32, // Space for header bar
-        width: bundle.regionWidth ? Math.max(autoWidth, bundle.regionWidth) : autoWidth,
-        height: bundle.regionHeight ? Math.max(autoHeight, bundle.regionHeight) : autoHeight,
-      });
+      // Compute orbital radius for child stars around the black hole
+      const childRadii = childStarSystems.map((s) => s.orbitalRadius + 60);
+      const bhOrbitalRadius = computeOrbitalRadius(childRadii);
+      const bhAngles = distributeAngles(childStarSystems.length);
+
+      const orbitingStars = childStarSystems.map((starSys, i) => ({
+        starSystem: starSys,
+        startAngle: bhAngles[i],
+        orbitDuration: getOrbitDuration(STAR_ORBIT_BASE_DURATION, starSys.bundle.id),
+      }));
+
+      const bhSpacing = Math.max(SYSTEM_MIN_SPACING, (bhOrbitalRadius + 100) * 2);
+      const bh: BlackHoleLayout = {
+        bundle: parentNode,
+        centerX: systemCol * bhSpacing + bhSpacing / 2,
+        centerY: bhSpacing / 2,
+        orbitalRadius: bhOrbitalRadius,
+        orbitingStars,
+      };
+      systemCol++;
+      blackHoles.push(bh);
     }
 
-    // Also show empty bundles that have no notes — place them after the grid
-    const usedBundleIds = new Set(groups.keys());
-    let emptyIndex = 0;
-    const gridEndY = notes.length > 0
-      ? Math.max(...Array.from(positions.values()).map((p) => p.y)) + CARD_HEIGHT + GAP * 3
+    // --- Position free-floating notes ---
+    const cols = Math.max(2, Math.floor((typeof window !== "undefined" ? window.innerWidth : 800) / (CARD_WIDTH + FREE_NOTE_GRID_GAP)));
+    const freeStartY = (starSystems.length > 0 || blackHoles.length > 0)
+      ? Math.max(
+          ...starSystems.map((s) => s.centerY + s.orbitalRadius + 100),
+          ...blackHoles.map((bh) => bh.centerY + bh.orbitalRadius + 200),
+          0
+        ) + 100
       : 0;
 
-    for (const bundle of bundles) {
-      if (usedBundleIds.has(bundle.id)) continue;
-      const defaultW = CARD_WIDTH * 1.4;
-      const defaultH = CARD_HEIGHT * 1.2 + 32;
-      regions.push({
-        bundle,
-        x: emptyIndex * (CARD_WIDTH * 1.5 + GAP * 2),
-        y: gridEndY,
-        width: bundle.regionWidth ? Math.max(defaultW, bundle.regionWidth) : defaultW,
-        height: bundle.regionHeight ? Math.max(defaultH, bundle.regionHeight) : defaultH,
-      });
-      emptyIndex++;
+    const freeNotePositions: FreeNoteLayout[] = freeNotes.map((note, i) => {
+      const radius = getPlanetRadius(note.content, note.title);
+      if (note.positionX !== null && note.positionY !== null) {
+        return { note, x: note.positionX, y: note.positionY, radius };
+      }
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      return {
+        note,
+        x: col * (CARD_WIDTH + FREE_NOTE_GRID_GAP) + CARD_WIDTH / 2,
+        y: freeStartY + row * (CARD_HEIGHT + FREE_NOTE_GRID_GAP) + CARD_HEIGHT / 2,
+        radius,
+      };
+    });
+
+    // --- Build allNotePositions map (static snapshot, used for zoom-to-edit) ---
+    const allNotePositions = new Map<string, { x: number; y: number }>();
+
+    // Free notes
+    for (const fn of freeNotePositions) {
+      allNotePositions.set(fn.note.id, { x: fn.x, y: fn.y });
     }
 
-    return regions;
-  }, [notes, bundles, positions, CARD_WIDTH, CARD_HEIGHT]);
+    // Star system planets — use their initial orbital position as snapshot
+    for (const sys of starSystems) {
+      for (const planet of sys.planets) {
+        allNotePositions.set(planet.note.id, {
+          x: sys.centerX + Math.cos(planet.startAngle) * sys.orbitalRadius,
+          y: sys.centerY + Math.sin(planet.startAngle) * sys.orbitalRadius,
+        });
+      }
+    }
 
-  return { positions, bundleRegions, CARD_WIDTH, CARD_HEIGHT };
+    // Black hole child star planets
+    for (const bh of blackHoles) {
+      for (const orbitingStar of bh.orbitingStars) {
+        const starCx = bh.centerX + Math.cos(orbitingStar.startAngle) * bh.orbitalRadius;
+        const starCy = bh.centerY + Math.sin(orbitingStar.startAngle) * bh.orbitalRadius;
+        for (const planet of orbitingStar.starSystem.planets) {
+          allNotePositions.set(planet.note.id, {
+            x: starCx + Math.cos(planet.startAngle) * orbitingStar.starSystem.orbitalRadius,
+            y: starCy + Math.sin(planet.startAngle) * orbitingStar.starSystem.orbitalRadius,
+          });
+        }
+      }
+    }
+
+    return {
+      freeNotePositions,
+      starSystems,
+      blackHoles,
+      allNotePositions,
+    };
+  }, [notes, bundles, tree, CARD_WIDTH, CARD_HEIGHT]);
+
+  return {
+    ...layout,
+    CARD_WIDTH,
+    CARD_HEIGHT,
+  };
 }
