@@ -17,6 +17,8 @@ export interface Bundle {
   icon: string;
   parentBundleId: string | null;
   order: number;
+  regionWidth: number | null;
+  regionHeight: number | null;
   createdAt: Date;
   updatedAt: Date;
 }

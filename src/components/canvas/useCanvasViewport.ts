@@ -9,8 +9,7 @@ interface ViewportState {
 }
 
 const MIN_ZOOM = 0.15;
-const MAX_ZOOM = 10;
-const ZOOM_STEP = 0.1;
+const MAX_ZOOM = 3;
 
 export function useCanvasViewport() {
   const [viewport, setViewport] = useState<ViewportState>({
@@ -25,6 +24,11 @@ export function useCanvasViewport() {
   const lastTouchDist = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const savedViewport = useRef<ViewportState | null>(null);
+
+  // Touch pan promotion: track initial touch to detect pan gesture on card surfaces
+  const touchOrigin = useRef<{ x: number; y: number } | null>(null);
+  const touchPromotedToPan = useRef(false);
+  const PAN_PROMOTE_THRESHOLD = 8; // px of movement before promoting to pan
 
   const screenToCanvas = useCallback(
     (screenX: number, screenY: number) => {
@@ -73,9 +77,20 @@ export function useCanvasViewport() {
     setTimeout(() => setIsAnimating(false), 450);
   }, []);
 
+  // Allow external code (dnd-kit drag) to suppress panning
+  const dragActiveRef = useRef(false);
+  const setDragActive = useCallback((active: boolean) => {
+    dragActiveRef.current = active;
+    if (active) {
+      isPanning.current = false;
+      touchOrigin.current = null;
+      touchPromotedToPan.current = false;
+    }
+  }, []);
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (isAnimating) return;
+      if (isAnimating || dragActiveRef.current) return;
       if (e.button === 1 || (e.button === 0 && e.target === e.currentTarget)) {
         isPanning.current = true;
         panStart.current = {
@@ -90,7 +105,7 @@ export function useCanvasViewport() {
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!isPanning.current || isAnimating) return;
+      if (!isPanning.current || isAnimating || dragActiveRef.current) return;
       setViewport((prev) => ({
         ...prev,
         offsetX: e.clientX - panStart.current.x,
@@ -115,8 +130,8 @@ export function useCanvasViewport() {
       const mouseY = e.clientY - rect.top;
 
       setViewport((prev) => {
-        const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
-        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev.zoom + delta));
+        const factor = e.deltaY > 0 ? 0.9 : 1.1;
+        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev.zoom * factor));
         const ratio = newZoom / prev.zoom;
 
         return {
@@ -131,9 +146,17 @@ export function useCanvasViewport() {
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
-      if (isAnimating) return;
+      if (isAnimating || dragActiveRef.current) return;
       if (e.touches.length === 1) {
+        // Always record touch origin for pan promotion
+        touchOrigin.current = {
+          x: e.touches[0].clientX,
+          y: e.touches[0].clientY,
+        };
+        touchPromotedToPan.current = false;
+
         if (e.target === e.currentTarget) {
+          // Direct canvas touch — start panning immediately
           isPanning.current = true;
           panStart.current = {
             x: e.touches[0].clientX - viewport.offsetX,
@@ -142,6 +165,8 @@ export function useCanvasViewport() {
         }
       } else if (e.touches.length === 2) {
         isPanning.current = false;
+        touchOrigin.current = null;
+        touchPromotedToPan.current = false;
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         lastTouchDist.current = Math.sqrt(dx * dx + dy * dy);
@@ -152,13 +177,31 @@ export function useCanvasViewport() {
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
-      if (isAnimating) return;
-      if (e.touches.length === 1 && isPanning.current) {
-        setViewport((prev) => ({
-          ...prev,
-          offsetX: e.touches[0].clientX - panStart.current.x,
-          offsetY: e.touches[0].clientY - panStart.current.y,
-        }));
+      if (isAnimating || dragActiveRef.current) return;
+      if (e.touches.length === 1) {
+        // Check for pan promotion: finger moved >threshold before drag delay fires
+        if (!isPanning.current && touchOrigin.current && !touchPromotedToPan.current) {
+          const dx = e.touches[0].clientX - touchOrigin.current.x;
+          const dy = e.touches[0].clientY - touchOrigin.current.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > PAN_PROMOTE_THRESHOLD) {
+            // Promote to pan — finger moved enough that this is a pan, not a tap/hold
+            isPanning.current = true;
+            touchPromotedToPan.current = true;
+            panStart.current = {
+              x: e.touches[0].clientX - viewport.offsetX,
+              y: e.touches[0].clientY - viewport.offsetY,
+            };
+          }
+        }
+
+        if (isPanning.current) {
+          setViewport((prev) => ({
+            ...prev,
+            offsetX: e.touches[0].clientX - panStart.current.x,
+            offsetY: e.touches[0].clientY - panStart.current.y,
+          }));
+        }
       } else if (e.touches.length === 2 && lastTouchDist.current !== null) {
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -185,12 +228,14 @@ export function useCanvasViewport() {
         });
       }
     },
-    [isAnimating]
+    [isAnimating, viewport.offsetX, viewport.offsetY]
   );
 
   const handleTouchEnd = useCallback(() => {
     isPanning.current = false;
     lastTouchDist.current = null;
+    touchOrigin.current = null;
+    touchPromotedToPan.current = false;
   }, []);
 
   const resetViewport = useCallback(() => {
@@ -208,6 +253,7 @@ export function useCanvasViewport() {
     resetViewport,
     zoomToCard,
     zoomBack,
+    setDragActive,
     handlers: {
       onMouseDown: handleMouseDown,
       onMouseMove: handleMouseMove,

@@ -121,8 +121,15 @@ export default function TiptapEditor({
           <Box
             sx={{
               display: "flex",
-              bgcolor: "background.paper",
-              borderRadius: 2,
+              bgcolor: (theme) =>
+                theme.palette.mode === "dark"
+                  ? "rgba(31,31,35,0.85)"
+                  : "rgba(241,237,241,0.85)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              border: 1,
+              borderColor: "divider",
+              borderRadius: 3,
               boxShadow: 8,
               p: 0.25,
               gap: 0.25,

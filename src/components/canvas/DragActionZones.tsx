@@ -35,7 +35,8 @@ function BottomZone({ id, label, icon, color }: BottomZoneProps) {
         transition: "all 200ms ease",
         transform: isOver ? "scale(1.08)" : "scale(1)",
         boxShadow: isOver ? `0 0 20px ${color}50` : "none",
-        minWidth: 72,
+        minWidth: 88,
+        minHeight: 56,
         cursor: "default",
         "& .MuiSvgIcon-root": {
           fontSize: isOver ? 28 : 22,
@@ -83,7 +84,7 @@ export default function DragActionZones({ visible }: DragActionZonesProps) {
             sx={{
               display: "flex",
               alignItems: "flex-end",
-              gap: 1.5,
+              gap: 2,
               px: 3,
               py: 2,
               mb: 2,

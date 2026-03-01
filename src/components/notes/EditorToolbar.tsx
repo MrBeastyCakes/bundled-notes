@@ -66,7 +66,11 @@ export default function EditorToolbar({ editor }: EditorToolbarProps) {
         display: "flex",
         alignItems: "center",
         gap: 0.25,
-        flexWrap: "wrap",
+        overflowX: "auto",
+        whiteSpace: "nowrap",
+        WebkitOverflowScrolling: "touch",
+        "&::-webkit-scrollbar": { display: "none" },
+        scrollbarWidth: "none",
         py: 0.5,
         px: 0.5,
       }}

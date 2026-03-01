@@ -152,6 +152,17 @@ export const lightScheme = {
   inverseOnSurface: tonalPalette.neutral[95],
 };
 
+/** Canvas dot grid opacity — consumed by NoteCanvas for the background pattern */
+export const GRID_DOT_OPACITY = 0.4;
+
+// --- Space theme visual constants ---
+export const STARFIELD_OPACITY = 0.3;
+export const PLANET_GLOW_INTENSITY = 0.4;
+export const STAR_GLOW_INTENSITY = 0.6;
+export const BLACK_HOLE_RING_OPACITY = 0.7;
+export const ORBIT_PATH_OPACITY = 0.12;
+export const PLANET_DEFAULT_COLOR = "#8a8fff"; // unbundled note glow
+
 // Preset bundle colors
 export const bundleColors = [
   "#565fff", // Primary blue

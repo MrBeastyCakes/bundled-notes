@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Box, IconButton } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,6 +20,8 @@ export default function EditorOverlay({
   view,
   onClose,
 }: EditorOverlayProps) {
+  const [viewportHeight, setViewportHeight] = useState<string>("100%");
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape" && note) {
@@ -34,6 +36,18 @@ export default function EditorOverlay({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
+  // Adjust overlay height when virtual keyboard opens/closes
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      setViewportHeight(`${vv.height}px`);
+    };
+    onResize();
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
+
   return (
     <AnimatePresence>
       {note && (
@@ -44,10 +58,14 @@ export default function EditorOverlay({
           transition={{ duration: 0.25, delay: 0.2 }}
           style={{
             position: "fixed",
-            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            height: viewportHeight,
             zIndex: 10001,
             display: "flex",
             flexDirection: "column",
+            paddingTop: "env(safe-area-inset-top, 0px)",
           }}
         >
           <Box
@@ -65,7 +83,7 @@ export default function EditorOverlay({
               onClick={onClose}
               sx={{
                 position: "absolute",
-                top: 16,
+                top: "max(16px, env(safe-area-inset-top, 0px))",
                 left: 16,
                 zIndex: 10,
                 bgcolor: "action.hover",

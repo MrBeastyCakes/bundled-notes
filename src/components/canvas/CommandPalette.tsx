@@ -12,6 +12,7 @@ import {
   Chip,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import SearchOffOutlinedIcon from "@mui/icons-material/SearchOffOutlined";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Note } from "@/lib/types";
 
@@ -204,9 +205,23 @@ export default function CommandPalette({
                   })}
                 </List>
               ) : (
-                <Box sx={{ p: 3, textAlign: "center" }}>
-                  <Typography variant="body2" color="text.secondary">
-                    No notes found
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 1,
+                    py: 4,
+                  }}
+                >
+                  <SearchOffOutlinedIcon
+                    sx={{ fontSize: 48, color: "text.secondary", opacity: 0.3 }}
+                  />
+                  <Typography variant="body1" color="text.secondary">
+                    No matching notes
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ opacity: 0.6 }}>
+                    Try a different search term
                   </Typography>
                 </Box>
               )}
