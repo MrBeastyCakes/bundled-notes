@@ -26,12 +26,17 @@ export function subscribeToBundles(
 ): Unsubscribe {
   const q = query(bundlesCollection(userId), orderBy("order", "asc"));
   return onSnapshot(q, (snapshot) => {
-    const bundles = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate() || new Date(),
-      updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-    })) as Bundle[];
+    const bundles = snapshot.docs.map((doc) => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        ...d,
+        regionWidth: d.regionWidth ?? null,
+        regionHeight: d.regionHeight ?? null,
+        createdAt: d.createdAt?.toDate() || new Date(),
+        updatedAt: d.updatedAt?.toDate() || new Date(),
+      };
+    }) as Bundle[];
     callback(bundles);
   });
 }
@@ -54,6 +59,16 @@ export async function updateBundle(
 ) {
   const ref = doc(getFirebaseDb(), "users", userId, "bundles", bundleId);
   return updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function updateBundleRegionSize(
+  userId: string,
+  bundleId: string,
+  regionWidth: number | null,
+  regionHeight: number | null
+) {
+  const ref = doc(getFirebaseDb(), "users", userId, "bundles", bundleId);
+  return updateDoc(ref, { regionWidth, regionHeight, updatedAt: serverTimestamp() });
 }
 
 export async function deleteBundle(userId: string, bundleId: string) {

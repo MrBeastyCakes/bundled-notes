@@ -77,9 +77,20 @@ export function useCanvasViewport() {
     setTimeout(() => setIsAnimating(false), 450);
   }, []);
 
+  // Allow external code (dnd-kit drag) to suppress panning
+  const dragActiveRef = useRef(false);
+  const setDragActive = useCallback((active: boolean) => {
+    dragActiveRef.current = active;
+    if (active) {
+      isPanning.current = false;
+      touchOrigin.current = null;
+      touchPromotedToPan.current = false;
+    }
+  }, []);
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      if (isAnimating) return;
+      if (isAnimating || dragActiveRef.current) return;
       if (e.button === 1 || (e.button === 0 && e.target === e.currentTarget)) {
         isPanning.current = true;
         panStart.current = {
@@ -94,7 +105,7 @@ export function useCanvasViewport() {
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (!isPanning.current || isAnimating) return;
+      if (!isPanning.current || isAnimating || dragActiveRef.current) return;
       setViewport((prev) => ({
         ...prev,
         offsetX: e.clientX - panStart.current.x,
@@ -135,7 +146,7 @@ export function useCanvasViewport() {
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
-      if (isAnimating) return;
+      if (isAnimating || dragActiveRef.current) return;
       if (e.touches.length === 1) {
         // Always record touch origin for pan promotion
         touchOrigin.current = {
@@ -166,7 +177,7 @@ export function useCanvasViewport() {
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
-      if (isAnimating) return;
+      if (isAnimating || dragActiveRef.current) return;
       if (e.touches.length === 1) {
         // Check for pan promotion: finger moved >threshold before drag delay fires
         if (!isPanning.current && touchOrigin.current && !touchPromotedToPan.current) {
@@ -242,6 +253,7 @@ export function useCanvasViewport() {
     resetViewport,
     zoomToCard,
     zoomBack,
+    setDragActive,
     handlers: {
       onMouseDown: handleMouseDown,
       onMouseMove: handleMouseMove,

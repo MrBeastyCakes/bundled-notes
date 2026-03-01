@@ -103,12 +103,15 @@ export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
         maxY = Math.max(maxY, pos.y + CARD_HEIGHT);
       }
 
+      const autoWidth = maxX - minX + REGION_PADDING * 2;
+      const autoHeight = maxY - minY + REGION_PADDING * 2 + 32;
+
       regions.push({
         bundle,
         x: minX - REGION_PADDING,
         y: minY - REGION_PADDING - 32, // Space for header bar
-        width: maxX - minX + REGION_PADDING * 2,
-        height: maxY - minY + REGION_PADDING * 2 + 32,
+        width: bundle.regionWidth ? Math.max(autoWidth, bundle.regionWidth) : autoWidth,
+        height: bundle.regionHeight ? Math.max(autoHeight, bundle.regionHeight) : autoHeight,
       });
     }
 
@@ -121,12 +124,14 @@ export function useCanvasLayout(notes: Note[], bundles: Bundle[]) {
 
     for (const bundle of bundles) {
       if (usedBundleIds.has(bundle.id)) continue;
+      const defaultW = CARD_WIDTH * 1.4;
+      const defaultH = CARD_HEIGHT * 1.2 + 32;
       regions.push({
         bundle,
         x: emptyIndex * (CARD_WIDTH * 1.5 + GAP * 2),
         y: gridEndY,
-        width: CARD_WIDTH * 1.4,
-        height: CARD_HEIGHT * 1.2 + 32,
+        width: bundle.regionWidth ? Math.max(defaultW, bundle.regionWidth) : defaultW,
+        height: bundle.regionHeight ? Math.max(defaultH, bundle.regionHeight) : defaultH,
       });
       emptyIndex++;
     }

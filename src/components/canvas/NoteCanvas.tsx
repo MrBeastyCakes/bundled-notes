@@ -30,6 +30,7 @@ import {
   softDeleteNote,
   moveNoteToBundle,
   updateNotePosition,
+  updateBundleRegionSize,
 } from "@/lib/firebase/firestore";
 import { GRID_DOT_OPACITY } from "@/lib/theme/colors";
 import type { Note, NoteView } from "@/lib/types";
@@ -78,11 +79,13 @@ export default function NoteCanvas() {
 
   const handleDragStart = useCallback(() => {
     setIsDragging(true);
-  }, []);
+    viewport.setDragActive(true);
+  }, [viewport]);
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
       setIsDragging(false);
+      viewport.setDragActive(false);
       if (!user) return;
 
       const { active, over, delta } = event;
@@ -133,7 +136,7 @@ export default function NoteCanvas() {
         }
       }
     },
-    [user, notes, positions, viewport.zoom]
+    [user, notes, positions, viewport]
   );
 
   // Click note → zoom in → enter edit mode
@@ -203,6 +206,14 @@ export default function NoteCanvas() {
       handleCreateNote(x, y);
     },
     [viewport, handleCreateNote, isEditing]
+  );
+
+  const handleBundleResize = useCallback(
+    async (bundleId: string, width: number, height: number) => {
+      if (!user) return;
+      await updateBundleRegionSize(user.uid, bundleId, width, height);
+    },
+    [user]
   );
 
   const handleViewChange = useCallback((view: NoteView) => {
@@ -329,7 +340,12 @@ export default function NoteCanvas() {
           >
             {/* Bundle containers — droppable regions */}
             {bundleRegions.map((region) => (
-              <BundleRegion key={region.bundle.id} region={region} />
+              <BundleRegion
+                key={region.bundle.id}
+                region={region}
+                zoom={viewport.zoom}
+                onResizeEnd={handleBundleResize}
+              />
             ))}
 
             {/* Item 4: Notes with entrance stagger animation + Item 5: bundleColor */}
